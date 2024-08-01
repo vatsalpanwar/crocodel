@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='crocodel',
     version='0.0.1',    
-    description='A example Python package',
+    description='A Python package for high-resolution cross-correlation spectroscopy retrievals of exoplanet atmospheres.',
     url='https://github.com/vatsalpanwar/crocodel',
     author='Vatsal Panwar',
     author_email='panvatsal@gmail.com',
