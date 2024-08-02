@@ -9,7 +9,8 @@ setup(
     author_email='panvatsal@gmail.com',
     license='MIT License',
     packages=['crocodel'],
-    install_requires=['numpy', 'astropy', 'scipy', 'matplotlib', 'tqdm',                    
+    install_requires=['numpy', 'astropy', 'scipy', 
+                      'matplotlib', 'tqdm', 'yaml',                    
                       ],
 
     classifiers=[
