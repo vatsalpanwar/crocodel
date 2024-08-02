@@ -1,23 +1,15 @@
 import sys 
 import numpy as np
 import yaml
-import genesis
-import scipy.constants as sc
 from scipy.interpolate import splev, splrep
 from scipy import interpolate
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
 from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
 
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
 from . import astro_utils as aut
 
-from tqdm import tqdm 
-import time
-import pdb
-
-from astropy.io import ascii as ascii_reader
 
 class Data:
     """Data class to contain and analyse typical high-resolution cross-correlation spectroscopy dataset.

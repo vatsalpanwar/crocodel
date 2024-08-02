@@ -1,13 +1,7 @@
 import sys 
-# sys.path.insert(0, "/home/astro/phsprd/code/genesis/code") 
-# sys.path.insert(0, "/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/genesis/code/opac")
-
-# sys.path.insert(0, "/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/genesis/code/")
-
 import numpy as np
 import yaml
 import genesis
-# from opac.opac import Opac
 import scipy.constants as sc
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
@@ -23,7 +17,9 @@ import pdb
 from astropy.io import ascii as ascii_reader
 
 class Model:
-    # Defined per instrument and per date.
+    """Model class to for modeling and performing cross-correlation and log-likelihood computations for 
+    typical high-resolution cross-correlation spectroscopy dataset.
+    """
     def __init__(self, *args, **kwargs):
         with open(kwargs.pop('config')) as f:
             self.config = yaml.load(f,Loader=yaml.FullLoader)
