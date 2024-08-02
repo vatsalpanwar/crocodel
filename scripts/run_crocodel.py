@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 
-# The main script to make your retrieval crocodile munch through the forest of high resolution spectroscopic lines using its very high resolution model teeths. 
-# This script takes the path to a pre-defined retrieval configuration 'croc_config*.yaml' file (could be located in an analysis folder, the amended copy of which for every session 
-# will be saved in the results folder with the retrieval results.), and runs the multinest retrieval. This works for a single instrument for now, but can be extended to doing multiple instruments in future.
-
 import argparse
 import numpy as np
 import astropy.io.fits
@@ -41,10 +37,10 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 # Add the path to the code snippet modules
-# sys.path.append('/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/sisiaph/')
-import stellcorrection_utils as stc
-import cross_correlation_utils as croc
-import crocodile as crocodile
+from crocodel.crocodel import stellcorrection_utils as stc
+from crocodel.crocodel import cross_correlation_utils as croc
+from crocodel.crocodel import data
+from crocodel.crocodel import model
 
 ##########################################################################################################################
 ##########################################################################################################################

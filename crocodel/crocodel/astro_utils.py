@@ -17,22 +17,20 @@ import glob
 import astropy.io.fits as fits
 from scipy.special import comb
 
-
-# Colormap to value plotting
-# import matplotlib as mpl
-# import matplotlib.cm as cm
-#
-# norm = mpl.colors.Normalize(vmin=0, vmax=2) ### vmin and vmax is the range of values you want to select colors for, so for 3 different colors do 0 and 2
-# c_m = cm.Greys ### Select the colormap here, I choose Greys
-# s_m = cm.ScalarMappable(cmap=c_m, norm=norm) ### Instantiate a scalarmappable object to bse used later
-# s_m.set_array([])
-#
-# ### So now you can choose a color for a marker as below, using 'l' to specify the color (so l can be 0,1,2 and accordingly it will sample the color across a colormap) :
-# plt.plot(x, y, markeredgecolor="k", markeredgewidth=0.8, markersize = 5.5, color=cm.ScalarMappable(norm=norm, cmap=c_m).to_rgba(l) )
-
-# Calculate BlackBody flux (in SI units)
-
 def compute_equivalent_width(spectrum = None, wavsoln = None, line_range = None, continuum_range = None):
+    """Compute Equivalent Width of a spectral line.
+
+    :param spectrum: 1D rray of flux values, defaults to None
+    :type spectrum: array_like
+    :param wavsoln: 1D array of wavelength solution in nm, defaults to None
+    :type wavsoln: array_like
+    :param line_range: start and stop wavelength values marking the spectral line, defaults to None
+    :type line_range: array_like
+    :param continuum_range: start and stop wavelength values marking the continuum, defaults to None
+    :type continuum_range: array_like
+    :return: Scalar value of the equivalent width of the line.
+    :rtype: float64
+    """
     
     line_range_inds = [np.argmin(abs(line_range[i]-wavsoln)) for i in range(len(line_range))]
     continuum_range_inds = [np.argmin(abs(continuum_range[i]-wavsoln)) for i in range(len(continuum_range))]
@@ -40,44 +38,45 @@ def compute_equivalent_width(spectrum = None, wavsoln = None, line_range = None,
     EW = np.sum(spectrum[line_range_inds[0]:line_range_inds[1]])/np.median(spectrum[continuum_range_inds[0]:continuum_range_inds[1]])
     return EW
 
-
-
 def doppler_shift_wavsoln(wavsoln=None, velocity=None):
-    """
-    This function applies a Doppler shift to a 1D array of wavelengths.
-    wav_obs = wav_orig (1. + velocity/c) where if velocity is positive it corresponds to a redshift
-    (i.e. source moving away from you, so wavelength solution gets shifted towards positive direction) and vice versa
+    
+    """This function applies a Doppler shift to a 1D array of wavelengths.
+     wav_obs = wav_orig (1. + velocity/c) where if velocity is positive it corresponds to a redshift
+     (i.e. source moving away from you, so wavelength solution gets shifted towards positive direction) and vice versa
     for a positive velocity - blueshift.
+    
+    :param wavsoln: 1D array of wavelength solution (in nm)
+    :type wavsoln: array_like
 
-    :param wavsoln: array_like
-    1D array if wavelengths, ideally in nanometers.
-
-    :param velocity: float
-    Float value of the velocity of the source, in km/s. Note that the astropy value of speed of light (c) is
-    in m/s.
-
+    :param velocity: Float value of the velocity of the source, in km/s. Note that the astropy value of speed of light (c) is in m/s.
+    :type velocity: float64 
+    
     :return: Doppler shifted wavelength solution.
+    :rtype: array_like
+    
     """
     wavsoln_doppler = wavsoln * (1. + (1000. * velocity) / con.c.value)
     return wavsoln_doppler
 
 def BB_flux(temperature=None, wavelength=None):
     """
-    Calculate the BB flux in the SI units. Should have the units as J s-1 m-2 m-1 sr-1
+    Calculate the Blackbody flux in the SI units. Should have the units as J s-1 m-2 m-1 sr-1
     (same as the planet flux intensity Ip from the model from Matteo/Remco).
+    
     :param wavelength: array_like
-    1D array of wavelengths, in AA.
-    :param temperature: float
-    Equilibrium temperature of the star or the object, in K.
+    1D array of wavelengths, in Angstroms.
+    :type wavelength: array_like
+    
+    :param temperature: Equilibrium temperature of the star or the object, in K.
+    :type temperature: float64
 
-    :return: wavelength array in AA and array of BB flux in SI units.
+    :return: wavelength array in Angstroms and array of BB flux in SI units.
+    :rtype: array_like
     """
     BB_scale = 1 * un.J / (un.m * un.m * un.s * un.AA * un.sr)
 
     BB = models.BlackBody(temperature=temperature * un.K, scale=BB_scale)
     waverange = wavelength * un.AA
-
-    # print(BB.input_units)
 
     BB_flux_val = BB(waverange)
 
@@ -85,20 +84,22 @@ def BB_flux(temperature=None, wavelength=None):
 
 def compute_FpFs(planet_temp = None, star_temp = None, wavelength = None, rprs = None):
     """
-    Compute the simulated emission spectrum for a planet assuming only blackbody radiation.
-    :param planet_temp: float
-    Equilibrium/Dayside Temperature of the planet, in Kelvin.
+    Compute the simulated blackbody emission for a planet assuming only blackbody radiation from both the star and the planet.
+    :param planet_temp: Equilibrium/Dayside Temperature of the planet, in Kelvin.
+    :type planet_temp: float
+    
+    :param star_temp: Effective temperature of the star, in Kelvin.
+    :type star_temp: float
+    
 
-    :param star_temp: float
-    Effective temperature of the star, in Kelvin.
-
-    :param wavelength: array_like
-    1D array of wavelength in which you want to compute the emission spectrum of the planet.
-
+    :param wavelength: 1D array of wavelength in which you want to compute the emission spectrum of the planet in Angstroms.
+    :type wavelength: array_like
+    
     :param rprs: float
     Planet to star radius ratio.
 
-    :return:Arrays of Wavelength in AA and FpFs.
+    :return: Arrays of Wavelength in AA and FpFs.
+    :rtype: array_like 
     """
 
     _, BB_model_planet = BB_flux(temperature=planet_temp, wavelength=wavelength)
@@ -116,14 +117,28 @@ def compute_TSM(scale_factor=None, Rp=None, Mp=None, Rs=None, Teq=None, Jmag=Non
     1.5 Rearth < Rp < 2.75 Rearth -> 1.26 ;
     2.75 Rearth < Rp < 4 Rearth -> 1.28 ;
     4 Rearth < Rp < 10 Rearth -> 1.15 ;
+    :type param: float64
 
-    :param Rp: Radius of the planet in earth radii. 
+    :param Rp: Radius of the planet in earth radii.
+    :type Rp: astropy.units
+     
     :param Mp: Mass of the planet in earth masses.
+    :type Mp: astropy.units
+    
     :param Rs: Radius of the star in solar radii.
+    :type Rs: astropy.units
+    
     :param Teq: Equilibrium temperature of the planet.
+    :type Teq: astropy.units
+    
     :param Jmag: J band magnitude.
+    :type Jmag: float64
+    
     :return: Transmission Spectrum Metric as defined in Newton et al. 2018 (https://arxiv.org/pdf/1805.03671.pdf).
+    :rtype: float64
+    
     """
+    
     TSM = (scale_factor * Rp ** 3. * Teq * 10 ** (-Jmag / 5.)) / (Mp * Rs ** 2.)
     return TSM
 
@@ -132,12 +147,25 @@ def compute_SH_signal(Teq=None, Mp=None, Rp=None, Rs=None, mu=None):
     """
     Calculate the SH (in metres) and the signal due to 1 scale height of the atmosphere. All quantities below should be
     taken as an input along with their astropy units.
+    
     :param Teq: Equilibrium temperature of the planet.
+    :type Teq: astropy.units
+    
     :param Mp: Mass of the planet.
+    :type Mp: astropy.units
+    
     :param Rp: Radius of the planet.
+    :type Rp: astropy.units
+    
     :param Rs: Radius of the star.
+    :type Rs: astropy.units
+    
     :param mu: Mean Molecular Weight of the atmosphere (2.33 for H-He dominated atmosphere)
-    :return: Signal due to 1 scale height (in ppm).
+    :type mu: float64
+    
+    :return: Signal due to 1 scale height (in ppm) and the scale height in metres.
+    :rtype: float64
+    
     """
     SH = (con.k_B * Teq) / (2.33 * con.u * ((con.G * Mp) / (Rp ** 2.)))
 
@@ -147,14 +175,33 @@ def compute_SH_signal(Teq=None, Mp=None, Rp=None, Rs=None, mu=None):
 
 def compute_SH_signal_relative(Teq=None, Mp=None, Rp=None, Rs=None, mu=None, del_TD_val = None, TD_ref = None):
     """
-    Calculate the SH (in metres) and the signal due to 1 scale height of the atmosphere. All quantities below should be
-    taken as an input along with their astropy units.
+    Calculate the relative change in scale height for given relative change in transit depth.
+    
     :param Teq: Equilibrium temperature of the planet.
+    :type Teq: astropy.units
+    
     :param Mp: Mass of the planet.
+    :type Mp: astropy.units
+    
     :param Rp: Radius of the planet.
+    :type Rp: astropy.units
+    
     :param Rs: Radius of the star.
+    :type Rs: astropy.units
+    
     :param mu: Mean Molecular Weight of the atmosphere (2.33 for H-He dominated atmosphere)
-    :return: Signal due to 1 scale height (in ppm).
+    :type mu: float64
+    
+    :param del_TD_val: Given change in transit depth.
+    :type del_TD_val: float64
+    
+    :param TD_ref: Reference transit depth value.
+    :type del_TD_val: float64
+    
+    :return: Change in scale height due to given change in transit depth.
+    :rtype: float64
+
+    
     """
     SH = (con.k_B * Teq) / (2.33 * con.u * ((con.G * Mp) / (Rp ** 2.)))
 
@@ -166,7 +213,10 @@ def compute_SH_signal_relative(Teq=None, Mp=None, Rp=None, Rs=None, mu=None, del
 
 def compute_log_g(Mp=None, Rp=None, out_unit = 'cgs'):
     """
-    Calculate the log_g in cgs.
+    Calculate the log_g of a planet in cgs.
+    
+    
+    
     """
     gravity =  ((con.G * Mp) / (Rp ** 2.))
     print(gravity.si)
@@ -237,17 +287,16 @@ def guillot_TP(pressure_levels = None, T_int = None, T_eq = None, gamma = None, 
     
     temperature_levels = (term1 + term2) ** 0.25
     
-    # temperature_levels = (0.75 * T_int**4. * (2. / 3. + tau) + \
-    #   0.75 * T_irr**4. / 4. * (2. / 3. + 1. / gamma / 3.**0.5 + \
-    #   (gamma / 3.**0.5 - 1. / 3.**0.5 / gamma)* \
-    #   np.exp(-gamma * tau *3.**0.5)))**0.25
 
     return temperature_levels
 
 def madhusudhan_seager_TP(pressure_levels = None, log_Pset = 0.1, Tset = None, alpha1 = None, alpha2 = None, log_P1 = None, log_P2 = None, log_P3 = None, beta = 0.5):
+    """
+    Compute the Madhusudhan and Seager 2009 parametrized TP profile. 
+    log_P1 < log_P2 < log_P3.
     
-    ### log_Pset, log_P1, log_P2, log_P3 should be in log_bars.
-    ### pressure_levels should be in bars. 
+    
+    """
     
     P1, P2, P3 = 1e5*10**log_P1, 1e5*10**log_P2, 1e5*10**log_P3 
     assert(P1 < P3)

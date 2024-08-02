@@ -9,7 +9,7 @@ import yaml
 import genesis
 # from opac.opac import Opac
 import scipy.constants as sc
-import stellcorrection_utils as stc
+from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
 from scipy.interpolate import splev, splrep
 from scipy import interpolate

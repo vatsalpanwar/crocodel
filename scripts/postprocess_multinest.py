@@ -24,12 +24,17 @@ from multiprocessing import Pool
 import pymultinest
 from subprocess import call
 import json
-# sys.path.append('/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/sisiaph/')
-import stellcorrection_utils as stc
-import cross_correlation_utils as croc
-import crocodile as crocodile
+
+from crocodel.crocodel import stellcorrection_utils as stc
+from crocodel.crocodel import cross_correlation_utils as crocut
+from crocodel.crocodel import data
+from crocodel.crocodel import model
+
 import glob
 import pdb
+
+exit()
+
 ##############################################################################
 ### Define species you want to compute the individual cross-correlation maps for 
 ##############################################################################

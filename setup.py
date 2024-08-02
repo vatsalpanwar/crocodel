@@ -9,7 +9,7 @@ setup(
     author_email='panvatsal@gmail.com',
     license='MIT License',
     packages=['crocodel'],
-    install_requires=['numpy',                     
+    install_requires=['numpy', 'astropy', 'scipy', 'matplotlib', 'tqdm',                    
                       ],
 
     classifiers=[
