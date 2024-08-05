@@ -26,7 +26,6 @@ import copy
 
 def get_data_BJD_phase_Vbary_igrins(datadir = None,  T0 = None, Porb = None, save = False, savedir = None, retres = False, infostring = None):
     
-    
     fitsfiles_H = sorted(glob.glob(datadir + 'SDCH*.fits'))
     fitsfiles_K = sorted(glob.glob(datadir + 'SDCK*.fits'))
     

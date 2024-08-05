@@ -11,6 +11,7 @@ from scipy import stats
 from memory_profiler import profile
 import gc
 import corner
+
 #########################################################################################################
 # General purpose functions ###############################################################
 #########################################################################################################
@@ -114,6 +115,7 @@ def do_expreg(regressor=None, data=None, method='lm'):
 #########################################################################################################
 # HIRES analysis specific functions #######################################################
 #########################################################################################################
+
 def subplot_datacube(axis=None, datacube=None, phases=None, wavsoln=None, title=None, setxlabel=False,
                      vminvmax=None):
     """
@@ -799,7 +801,7 @@ def reprocess_model_per_detector_per_KpVsys(datacube=None, data_wavsoln=None, mo
 
     return datacube_detrended, model_reprocess
 
-## 
+
 def mask_data_post_pca_per_order(cube, maskval = 0., threshold = 'var'):
     nf, nx = cube.shape
     masked = cube.copy()
@@ -1361,33 +1363,3 @@ def make_paper_figure_PCA_optim_demo(case = None, date = None, det = None, N_PCA
     return summary_dd         
 
 
-
-
-
-
-# def get_equivalent_width(spec_exp = None, wav_exp = None, wcont = None, wline = None):
-#
-#     #### Example call :
-#     # ewidth_b_1 = get_equivalent_width(spec_exp = odd_ab['allspec_weight'][:,odd_ab['bframes'][tmb],1],
-#     #                                   wav_exp = wav_soln,
-#     #                                   wcont = [[170,125],[310,360]],  ### neighbouring continuum
-#     #                                   wline = [126, 295] )
-#     # returns EW time series for the spectral time series updated
-#
-#     F_0 = np.median( list(spec_exp[wcont[0][0]:wcont[0][1]]) + list(spec_exp[wcont[1][0]:wcont[1][1]])  )
-#
-#     F_line = spec_exp[wline[0]:wline[1],:]
-#
-#     wav_line = wav_exp[wline[0]:wline[1]]
-#
-#     EW = []
-#
-#     for kk in range(F_line.shape[1]):
-#
-#         EW_int = 1. - (F_line[:,kk]/F_0)
-#
-#         EW_ = np.trapz(EW_int, x = wav_line)
-#
-#         EW.append(EW_)
-#
-#     return EW
