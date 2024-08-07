@@ -123,8 +123,9 @@ class Model:
         
         if self.TP_type == 'Linear':
             # From Sid'e email and looking at set_T function, 
-            # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2!
+            # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! All in log_Pascals
             gen_.set_T(self.P1, self.T1, self.P2, self.T2) # This part should have options to choose different kinds of TP profile.
+        
         elif self.TP_type == 'Guillot':
             gen_.T = aut.guillot_TP(pressure_levels = gen_.P.copy()/1e5, # All input pressure values should be in bars for this (the function will convert to Pascals itself)
                                    T_int = self.T_int, 

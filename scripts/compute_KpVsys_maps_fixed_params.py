@@ -2,28 +2,12 @@
 
 import argparse
 import numpy as np
-import astropy.io.fits
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-import matplotlib.cm as cm
-from scipy.optimize import curve_fit
-import astropy.io.fits
 import yaml
-import sys 
-import dynesty
-import emcee 
-import time
 from shutil import copyfile
-import corner
-import cProfile
 import datetime
 import os
-from multiprocessing import Pool
 # os.environ["OMP_NUM_THREADS"] = "1"
-import pymultinest
-from subprocess import call
-import json
-import glob
 
 # Matplotlib rcparams
 SMALL_SIZE = 20
@@ -41,15 +25,12 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 # Add the path to the code snippet modules
 # sys.path.append('/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/sisiaph/')
 from crocodel.crocodel import stellcorrection_utils as stc
-from crocodel.crocodel import cross_correlation_utils as crocut
+from crocodel.crocodel import astro_utils as aut
 from crocodel.crocodel import data
 from crocodel.crocodel import model
-from crocodel.crocodel import astro_utils as aut
-
 ##########################################################################################################################
 ##########################################################################################################################
-# INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
-INST_GLOBAL = 'carmenes' ## could change this when running for multiple instruments in future implementation.
+INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
 ##########################################################################################################################
 ##########################################################################################################################
 
@@ -57,7 +38,7 @@ INST_GLOBAL = 'carmenes' ## could change this when running for multiple instrume
 parser = argparse.ArgumentParser(description='Read the user inputs.')
 parser.add_argument('-cfg','--config_file_path', help = "Path to the croc_config.yaml.",
                     type=str, required=True)
-parser.add_argument('-dt','--date_tag', help = "Date tag of a previous run on which you want to run parts of the script.",
+parser.add_argument('-dt','--date_tag', help = "(Optional) Date tag of a previous run on which you want to run parts of the script.",
                     type=str, required=False)
 parser.add_argument('-mmet','--map_calc_method', help = "Method used to calculate the map, 'fast' or 'slow'. Fast is done without model reprocessing using the fast method, and slow is done with model reprocessing.",
                     type=str, required=True)
@@ -96,18 +77,16 @@ copyfile(config_file_path, savedir + 'croc_config.yaml')
 ############################################# Initialize the Data and Model classes: #######################################################################################
 ############################################################################################################################################################################
 ############################################################################################################################################################################
-planet_data = crocodile.Data(config = config_file_path)
+planet_data = data.Data(config = config_file_path)
 planet_model_dict = {}
 for inst in config_dd['data'].keys():
-    planet_model_dict[inst] = crocodile.Model(config = config_file_path, inst = inst )
+    planet_model_dict[inst] = model.Model(config = config_file_path, inst = inst )
 
 free_param_dict = config_dd['model']["free_params"]
 fix_param_dict = {}
 for pname in free_param_dict.keys():
     fix_param_dict[pname] = free_param_dict[pname]["fix_test"]
 
-# import pdb
-# pdb.set_trace()
 ############################################################################################################################################################################
 ############################################################################################################################################################################
 ## Do the PCA detrending for the data just once as it doesn't need to be repeated for ######################################################################################
@@ -316,7 +295,7 @@ plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
 plt.savefig(savedir + 'TP_profile.png', format='png', dpi=300, bbox_inches='tight')
 ##############################################################################
-### Compute the 2D KpVsys maps and also plot them for all species 
+### Compute the 2D KpVsys maps and also plot them for all species included
 ##############################################################################
 ###### Make sure everything is set to initial params 
 print(fix_param_dict.keys())
@@ -342,7 +321,7 @@ elif KpVsys_method == 'fast':
        
        
 ##############################################################################
-### Compute the 2D KpVsys maps and also plot them for all species individually ; only implemented for slow method right now.
+### Compute the 2D KpVsys maps and also plot them for all species individually ; following only implemented for slow method right now.
 ##############################################################################     
 # for spnm in SP_INDIV:
 #     print('Only ', spnm)
