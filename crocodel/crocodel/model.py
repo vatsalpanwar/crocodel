@@ -1,6 +1,10 @@
 import numpy as np
 import yaml
+
+import sys
+sys.path.insert(0, "/home/astro/phsprd/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
 import genesis
+
 import scipy.constants as sc
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
