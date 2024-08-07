@@ -1,4 +1,3 @@
-import sys 
 import numpy as np
 import yaml
 import genesis
@@ -9,11 +8,9 @@ from scipy.interpolate import splev, splrep
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
+from astropy.convolution import Gaussian1DKernel, convolve
 from . import astro_utils as aut
 from tqdm import tqdm 
-import time
-import pdb
 from astropy.io import ascii as ascii_reader
 
 class Model:

@@ -1,14 +1,8 @@
-import sys 
 import numpy as np
 import yaml
-from scipy.interpolate import splev, splrep
-from scipy import interpolate
-import matplotlib.pyplot as plt
-from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
 
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
-from . import astro_utils as aut
 
 
 class Data:
