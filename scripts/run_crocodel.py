@@ -95,6 +95,12 @@ N_live_points = config_dd['retrieval_setup']["N_live"]
 """Setup the free parameter dictionary from the information available in the croc_config.yaml file"""
 free_param_dict = config_dd['model']["free_params"]
 
+"""Setup the fix parameter dictionary"""
+fix_param_dict = {}
+for pname in free_param_dict.keys():
+    fix_param_dict[pname] = free_param_dict[pname]["fix_test"]
+
+
 ################################################################
 ################################################################
 """
@@ -196,16 +202,32 @@ datadetrend_dd_global = datadetrend_dd
 planet_model_dict_global = planet_model_dict
 Vsys_range_bound, Vsys_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_step']
 Vsys_range_bound_trail = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range_trail']
+vel_window = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['vel_window']
+
 Kp_range_bound, Kp_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Kp_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Kp_step']
 Vsys_range = np.arange(Vsys_range_bound[0], Vsys_range_bound[1], Vsys_step)
 Vsys_range_trail = np.arange(Vsys_range_bound_trail[0], Vsys_range_bound_trail[1], Vsys_step)
 Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
 
-print('Computing the trail matrix for initial parameters of the model class')
-planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
-                                                    order_inds = order_inds, 
-                             Vsys_range = Vsys_range_trail, plot = True, savedir = savedir)
-print('Done!')
+################################################################
+################################################################
+""" Set all free parameters to the fix parameters """
+print(fix_param_dict.keys())
+for pname in fix_param_dict.keys():
+    if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+        print(pname, fix_param_dict[pname])
+        setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
+    else:
+        setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])  
+################################################################
+################################################################
+
+##### Uncomment below if you want to compute the trail matrix 
+# print('Computing the trail matrix for initial parameters of the model class')
+# planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
+#                                                     order_inds = order_inds, 
+#                              Vsys_range = Vsys_range_trail, plot = True, savedir = savedir)
+# print('Done!')
 
 ################################################################
 ################################################################
@@ -238,6 +260,21 @@ plt.ylabel('Fp/Fs')
 plt.legend()
 plt.savefig(savedir + 'init_model_all_species.pdf', format='pdf', bbox_inches='tight')
 np.save(savedir + 'init_forward_models.npy', init_model_dd)
+
+
+################################################################
+################################################################
+"""
+Compute a fast Kp-Vsys map for the fix_test values in the free_param_dict
+"""
+################################################################
+################################################################
+print('Computing KpVsys maps ')
+planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                           datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+
+
 
 ################################################################
 ################################################################

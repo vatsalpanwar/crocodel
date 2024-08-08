@@ -850,13 +850,13 @@ class Model:
                         model_spec_flux_shift = model_spec_flux_shift - crocut.fast_mean(model_spec_flux_shift)
                         # Compute the cross correlation value between the shifted model and the data
                         
-                        if it == 0 and iv == 0:
-                            plt.figure(figsize = (10,8))
-                            plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
-                            plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
-                            plt.legend()
-                            plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')    
-                        plt.close('all')
+                        # if it == 0 and iv == 0:
+                        #     plt.figure(figsize = (10,8))
+                        #     plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
+                        #     plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
+                        #     plt.legend()
+                        #     plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')    
+                        # plt.close('all')
                         _, cc_matrix_all_orders[i_ind,it,iv], logL_matrix_all_orders[i_ind,it,iv] = crocut.fast_cross_corr(data=datacube_mean_sub[ind,it,~avoid_mask], 
                                                                                                                      model=model_spec_flux_shift[~avoid_mask])
                         
@@ -877,7 +877,7 @@ class Model:
 
             # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
             axx.set_ylabel(r'$\phi$')
-            axx.set_xlabel(r'V$_{rest}$ [km/s]')
+            axx.set_xlabel(r'V$_{sys}$ [km/s]')
             plt.savefig(savedir + 'ccf_total_trail_matrix_fast_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
             plt.close()
         
@@ -895,7 +895,7 @@ class Model:
 
             # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
             axx.set_ylabel(r'$\phi$')
-            axx.set_xlabel(r'V$_{rest}$ [km/s]')
+            axx.set_xlabel(r'V$_{sys}$ [km/s]')
             plt.savefig(savedir + 'logL_total_trail_matrix_fast_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
             plt.close()
         
@@ -915,7 +915,6 @@ class Model:
                 CC_matrix_shifted, logL_matrix_shifted = np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
                 for it in range(nspec):
                     Vp = Kp * np.sin(2. * np.pi * phases[it])
-                    print("NOT INCLUDING BERV")
                     Vsys_shifted = Vsys_range + Vp  + berv[it] 
                     # print('Vp:', Vp, 'BERV: ', berv[it])
                     # print('Vsys_shifted ', max(Vsys_shifted), min(Vsys_shifted) )
@@ -983,9 +982,9 @@ class Model:
             
 
         axx[0].set_ylabel(r'K$_{P}$ [km/s]')
-        axx[0].set_xlabel(r'V$_{rest}$ [km/s]')
+        axx[0].set_xlabel(r'V$_{sys}$ [km/s]')
         axx[1].set_ylabel(r'K$_{P}$ [km/s]')
-        axx[1].set_xlabel(r'V$_{rest}$ [km/s]')
+        axx[1].set_xlabel(r'V$_{sys}$ [km/s]')
         
         if species_info is None:
             plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess.png', format='png', dpi=300, bbox_inches='tight')
@@ -1113,7 +1112,7 @@ class Model:
 
             # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
             axx.set_ylabel(r'K$_{P}$ [km/s]')
-            axx.set_xlabel(r'V$_{rest}$ [km/s]')
+            axx.set_xlabel(r'V$_{sys}$ [km/s]')
 
             # axx.set_xlim(xmin=velocity_shifts_win[0], xmax=velocity_shifts_win[-1])
             # axx.set_ylim(ymin=Kp_range[0], ymax=Kp_range[-1])

@@ -1,6 +1,6 @@
+#!/usr/bin/env python
 import argparse
 import numpy as np
-import astropy.io.fits
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.cm as cm
@@ -8,16 +8,11 @@ from scipy.optimize import curve_fit
 import astropy.io.fits
 import yaml
 import sys 
-#import arviz as az
-#import pymc as pm
-#import pytensor
-#import pytensor.tensor as pt
 import dynesty
 import emcee 
 import time
 from shutil import copyfile
 import corner
-import cProfile
 import datetime
 import os
 from multiprocessing import Pool
@@ -31,9 +26,6 @@ from crocodel.crocodel import data
 from crocodel.crocodel import model
 
 import glob
-import pdb
-
-exit()
 
 ##############################################################################
 ### Define species you want to compute the individual cross-correlation maps for 
