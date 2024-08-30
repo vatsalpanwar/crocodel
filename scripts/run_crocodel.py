@@ -32,7 +32,7 @@ from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
 ### Define the global name for the instrument (should match the instrument name specified in the croc_config.yaml file)
-INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
+INST_GLOBAL = 'crires' ## could change this when running for multiple instruments in future implementation.
 ##########################################################################################################################
 ##########################################################################################################################
 
@@ -275,6 +275,9 @@ planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_r
                              Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
 
 
+
+
+# exit()
 
 ################################################################
 ################################################################

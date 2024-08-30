@@ -10,7 +10,7 @@ setup(
     license='MIT License',
     packages=['crocodel'],
     install_requires=['numpy', 'astropy', 'scipy', 
-                      'matplotlib', 'tqdm', 'pyyaml',                    
+                      'matplotlib', 'tqdm', 'pyyaml', 'pyfastchem'                    
                       ],
 
     classifiers=[

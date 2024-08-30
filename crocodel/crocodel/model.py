@@ -1,6 +1,6 @@
 import numpy as np
 import yaml
-
+import pyfastchem
 import sys
 sys.path.insert(0, "/home/astro/phsprd/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
 import genesis
@@ -16,6 +16,8 @@ from astropy.convolution import Gaussian1DKernel, convolve
 from . import astro_utils as aut
 from tqdm import tqdm 
 from astropy.io import ascii as ascii_reader
+from astropy import constants as con
+from astropy import units as un
 
 class Model:
     """Model class to for modeling and performing cross-correlation and log-likelihood computations for 
@@ -48,7 +50,39 @@ class Model:
         self.lam_max = self.config['model']['lam_max'] # Maximum wavelength for model calculation, in microns
         self.resolving_power = self.config['model']['R_power'] # Resolving power for the model calculation (use 250000 which will later be convolved down)
         self.spacing = self.config['model']['spacing'] # Wavelength grid spacing, use 'R' for constant resolving power
+        self.chemistry = self.config['model']['chemistry']
         
+        # Load the names of all the absorbing species to be included in the model
+        self.species = np.array(list(self.config['model']['abundances'].keys()))
+        self.species_name_fastchem = self.config['model']['species_name_fastchem']
+
+        if self.chemistry == 'eq_chem':
+            #create a FastChem object
+            #it needs the locations of the element abundance and equilibrium constants files
+            #these locations have to be relative to the one this Python script is called from
+            self.fastchem = pyfastchem.FastChem(
+            '../fastchem_inputs/input/element_abundances/asplund_2009.dat',
+            '../fastchem_inputs/input/logK/logK.dat',
+            1)
+            
+            # Make a copy of the solar abundances from FastChem
+            self.solar_abundances = np.array(self.fastchem.getElementAbundances())
+            self.logZ_planet = self.config['model']['logZ_planet']
+            self.C_to_O = self.config['model']['C_to_O']
+            
+            self.index_C = self.fastchem.getElementIndex('C')
+            self.index_O = self.fastchem.getElementIndex('O')
+            
+            # Create the input and output structures for FastChem
+            self.input_data = pyfastchem.FastChemInput()
+            self.output_data = pyfastchem.FastChemOutput()
+            
+            self.species_fastchem_indices = {}
+            for sp in self.species: ## Only do this for the species we are including in the model
+                self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
+            ## "h2" is usually not in the free abundances so get its index as well separately.
+            self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
+    
         if self.TP_type == 'Linear':
             self.P2 = 10.**self.config['model']['P2']
             self.T2 = self.config['model']['T2']
@@ -93,13 +127,13 @@ class Model:
         self.Kp = self.config['model']['Kp'] # Current value of Kp, in km/s
         self.Vsys = self.config['model']['Vsys'] # Current value of Vsys, in km/s
         
+        self.chemistry = self.config['model']['chemistry']
+        
         self.Kp_pred = self.Kp # Expected value of Kp, in km/s
         self.Vsys_pred = self.Vsys # Expected value of Vsys, in km/s
 
         self.free_params_dict = self.config['model']['free_params'] 
         
-        # Load the names of all the absorbing species to be included in the model
-        self.species = np.array(list(self.config['model']['abundances'].keys()))
         
         # Set the initial abundances for each species as specified under 'abundances' in croc_config.yaml 
         for sp in self.species:
@@ -111,6 +145,8 @@ class Model:
         # Instantiate GENESIS only once based on the given model properties
         self.Genesis_instance = genesis.Genesis(self.P_min, self.P_max, self.N_layers, self.lam_min, self.lam_max, self.resolving_power, self.spacing, method = self.method)
         
+        
+    
     @property
     def gen(self):
         """Get the Genesis object based on the latest value of parameters.
@@ -162,7 +198,8 @@ class Model:
     
     def get_TP_profile(self):
         """
-        Return TP profile, as arrays of T [K] and P [bars].
+        Return TP profile, as arrays of T [K] and P [bars]. This function is useful for manipulating the original Genesis instance (and NOT for retrieval, that is done already as part of gen function above which 
+        is a property of the class, so just use that elsewhere for example for calculating the equilibrium chemistry abundances.)
         """
         gen_ = self.Genesis_instance
         if self.TP_type == 'Linear':
@@ -201,6 +238,37 @@ class Model:
         return gen_.T, gen_.P.copy() / 1E5 
 
     
+    def get_eqchem_abundances(self):
+        """Given TP profile, and the C/O and metallicity, compute the equilibrium chemistry abundances of the species included in the retrieval. 
+        The outputs from this can be used when constructing the abundances dictionary.
+
+        :return: _description_
+        :rtype: _type_
+        """
+        
+        element_abundances = np.copy(self.solar_abundances)
+  
+        #scale the element abundances, except those of H and He
+        for j in range(0, self.fastchem.getElementNumber()):
+            if self.fastchem.getElementSymbol(j) != 'H' and self.fastchem.getElementSymbol(j) != 'He':
+                element_abundances[j] *= 10.**self.logZ_planet
+        
+        # Set the abundance of C with respect to O according to the C/O ratio
+        element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
+
+        self.fastchem.setElementAbundances(element_abundances)
+        
+        self.input_data.temperature = self.gen.T
+        self.input_data.pressure = self.gen.P.copy() / 1E5
+        
+        fastchem_flag = self.fastchem.calcDensities(self.input_data, self.output_data)
+        
+        #convert the output into a numpy array
+        number_densities = np.array(self.output_data.number_densities)
+        
+        return number_densities
+    
+
     @property
     def abundances_dict(self):
         """Setup the dictionary of abundances based on the latest set of parameters.
@@ -210,20 +278,35 @@ class Model:
         """
         
         X = {}
-        for sp in self.species:
-            if sp not in ["h2", "he"]:
-                X[sp] = np.full(len(self.gen.P), getattr(self, sp))
-        X["he"] = np.full(len(self.gen.P), self.he)
         
-        metals = np.full(len(self.gen.P), 0.)
-        for sp in self.species:
-            if sp != "h2":
-                metals+=X[sp]
+        if self.chemistry == 'free_chem':
+            for sp in self.species:
+                if sp not in ["h2", "he"]:
+                    X[sp] = np.full(len(self.gen.P), getattr(self, sp))
+            X["he"] = np.full(len(self.gen.P), self.he)
+            
+            metals = np.full(len(self.gen.P), 0.)
+            for sp in self.species:
+                if sp != "h2":
+                    metals+=X[sp]
+                
+                X["h2"] = 1.0 - metals
         
-        X["h2"] = 1.0 - metals
-        
+        elif self.chemistry == 'eq_chem':
+            number_densities = self.get_eqchem_abundances()
+            #total gas particle number density from the ideal gas law 
+            #used later to convert the number densities to mixing ratios
+            gas_number_density = ( ( self.gen.P.copy() / 1E5 ) *1e6 ) / ( con.k_B.cgs * self.gen.T )
+            # gas_number_density = ( self.gen.P.copy() * un.Pa ) / ( con.k_B * self.gen.T * un.K )
+            
+            for sp in self.species:
+                vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
+                X[sp] = vmr.value 
+            vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
+            X["h2"] = vmr_h2.value
+            
         assert all(X["h2"] >= 0.) # make sure that the hydrogen abundance is not going negative!   
-        
+
         return X 
     
     def get_spectra(self):
