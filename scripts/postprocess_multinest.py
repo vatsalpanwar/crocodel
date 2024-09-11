@@ -36,12 +36,16 @@ import glob
 #              'oh':'red',
 #              'fe':'green',
 #              'tio':'orange'}
-SP_INDIV = ['co', 'h2o'] # , 'oh', 'fe', 'tio']
-SP_COLORS = {'co':'black',
-             'h2o':'blue',
+
+SP_INDIV = ['logZ_planet', 'C_to_O'] #['co', 'h2o'] # , 'oh', 'fe', 'tio']
+SP_COLORS = {
+            # 'co':'black',
+            #  'h2o':'blue',
             #  'oh':'red',
             #  'fe':'green',
             #  'tio':'orange'
+            'logZ_planet':'green',
+            'C_to_O':'orange'
              }
 
 ##############################################################################
@@ -78,10 +82,10 @@ with open(config_file_path) as f:
 ##############################################################################
 ### Initialize the Data and Model classes: 
 ##############################################################################
-planet_data = crocodile.Data(config = config_file_path)
+planet_data = data.Data(config = config_file_path)
 planet_model_dict = {}
 for inst in config_dd['data'].keys():
-    planet_model_dict[inst] = crocodile.Model(config = config_file_path, inst = inst )
+    planet_model_dict[inst] = model.Model(config = config_file_path, inst = inst )
 
 free_param_dict = config_dd['model']["free_params"]
 ##############################################################################

@@ -79,7 +79,8 @@ class Model:
             
             self.species_fastchem_indices = {}
             for sp in self.species: ## Only do this for the species we are including in the model
-                self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
+                if sp != "h_minus":
+                    self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
             ## "h2" is usually not in the free abundances so get its index as well separately.
             self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
     
@@ -300,8 +301,9 @@ class Model:
             # gas_number_density = ( self.gen.P.copy() * un.Pa ) / ( con.k_B * self.gen.T * un.K )
             
             for sp in self.species:
-                vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
-                X[sp] = vmr.value 
+                if sp != 'h_minus':
+                    vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
+                    X[sp] = vmr.value 
             vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
             X["h2"] = vmr_h2.value
             

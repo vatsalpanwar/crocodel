@@ -32,7 +32,7 @@ from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
 ### Define the global name for the instrument (should match the instrument name specified in the croc_config.yaml file)
-INST_GLOBAL = 'crires' ## could change this when running for multiple instruments in future implementation.
+INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
 ##########################################################################################################################
 ##########################################################################################################################
 
