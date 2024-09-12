@@ -2,7 +2,7 @@ import numpy as np
 import yaml
 import pyfastchem
 import sys
-sys.path.insert(0, "/home/astro/phsprd/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
+sys.path.insert(0, "/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
 import genesis
 
 import scipy.constants as sc
@@ -61,7 +61,7 @@ class Model:
             #it needs the locations of the element abundance and equilibrium constants files
             #these locations have to be relative to the one this Python script is called from
             self.fastchem = pyfastchem.FastChem(
-            '../fastchem_inputs/input/element_abundances/asplund_2009.dat',
+            '../fastchem_inputs/input/element_abundances/asplund2020.dat',
             '../fastchem_inputs/input/logK/logK.dat',
             1)
             

@@ -7,15 +7,15 @@ retrieval_setup:
   N_live: 500
 
 workdir:
-  results: '/home/astro/phsprd/code/crocodel/examples/wasp122b/results/retrievals/'
-  KpVsys_maps_fixed_params: '/home/astro/phsprd/code/crocodel/examples/wasp122b/results/KpVsys_maps_fixed_params/'
+  results: '/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/crocodel/examples/wasp122b/results/retrievals/'
+  KpVsys_maps_fixed_params: '/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/crocodel/examples/wasp122b/results/KpVsys_maps_fixed_params/'
 
 data: # Each high level key under data should be the name of the instrument.
   igrins:
     method: emission
     resolution: 45000
     dates:
-      '2023-12-04': ['/home/astro/phsprd/code/crocodel/examples/wasp122b/data/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
+      '2023-12-04': ['/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/crocodel/examples/wasp122b/data/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
     
     N_order_all : 42
 
