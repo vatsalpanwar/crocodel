@@ -61,7 +61,7 @@ class Model:
             #it needs the locations of the element abundance and equilibrium constants files
             #these locations have to be relative to the one this Python script is called from
             self.fastchem = pyfastchem.FastChem(
-            '../fastchem_inputs/input/element_abundances/asplund_2009.dat',
+            '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
             '../fastchem_inputs/input/logK/logK.dat',
             1)
             
