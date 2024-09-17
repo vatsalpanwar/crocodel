@@ -60,9 +60,15 @@ class Model:
             #create a FastChem object
             #it needs the locations of the element abundance and equilibrium constants files
             #these locations have to be relative to the one this Python script is called from
+            
+            # self.fastchem = pyfastchem.FastChem(
+            # '../fastchem_inputs/input/element_abundances/asplund2020.dat',
+            # '../fastchem_inputs/input/logK/logK.dat',
+            # 1)
+            
             self.fastchem = pyfastchem.FastChem(
-            '../fastchem_inputs/input/element_abundances/asplund2020.dat',
-            '../fastchem_inputs/input/logK/logK.dat',
+            '/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/crocodel/fastchem_inputs/input/element_abundances/asplund_2020_extended.dat',
+            '/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/crocodel/fastchem_inputs/input/logK/logK.dat',
             1)
             
             # Make a copy of the solar abundances from FastChem
@@ -83,7 +89,7 @@ class Model:
                     self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
             ## "h2" is usually not in the free abundances so get its index as well separately.
             self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
-    
+
         if self.TP_type == 'Linear':
             self.P2 = 10.**self.config['model']['P2']
             self.T2 = self.config['model']['T2']
@@ -310,6 +316,13 @@ class Model:
         assert all(X["h2"] >= 0.) # make sure that the hydrogen abundance is not going negative!   
 
         return X 
+    
+    def get_R_to_O_ratio(self):
+        """
+        (Under construction)
+        Compute refractory to volatile ratio given the current abundances of the model.
+        """
+        return 0.
     
     def get_spectra(self):
         """Compute the transmission or emission spectrum.
