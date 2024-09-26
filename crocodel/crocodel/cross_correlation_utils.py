@@ -673,7 +673,9 @@ def plot_2D_cmap(axis=None, matrix_2D=None, Y=None, X=None, title=None,
     if axis is None:
         fig = plt.figure(figsize = (10,10))
         axis = plt.gca()
-        
+    
+    fig = plt.gcf()
+    
     if plot_type == 'pcolormesh':
         plot_hand = axis.pcolormesh(X, Y, matrix_2D)
     elif plot_type == 'contourf': # Useful for sigma contours
