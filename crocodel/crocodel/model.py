@@ -4,7 +4,7 @@ import pyfastchem
 import sys
 sys.path.insert(0, "/home/astro/phsprd/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
 import genesis
-
+from astropy.io import fits
 import scipy.constants as sc
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
@@ -40,7 +40,7 @@ class Model:
         
         # Stellar properties
         self.R_star = self.config['model']['R_star'] # Stellar radius, in terms of R_Sun
-        self.T_eff = self.config['model']['T_eff'] # Stellar effective temperature, in K
+        self.T_eff = self.config['model']['T_eff'] # Stellar effective temperature, in K        
         
         # Other model properties
         self.P_min = self.config['model']['P_min'] # Minimum pressure level for model calculation, in bars 
@@ -83,7 +83,15 @@ class Model:
                     self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
             ## "h2" is usually not in the free abundances so get its index as well separately.
             self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
-    
+            
+        elif self.chemistry == 'free_chem_with_dissoc':
+            self.sp_dissoc_list  = self.config['model']['sp_dissoc_list']
+            for sp in self.sp_dissoc_list:
+                setattr(self, 'alpha_'+ sp , self.config['model']['sp_dissoc_params']['alpha_'+sp])
+                setattr(self, 'log10_beta_'+ sp , self.config['model']['sp_dissoc_params']['alpha_'+sp])
+                setattr(self, 'gamma_'+ sp , self.config['model']['sp_dissoc_params']['alpha_'+sp])
+                
+        
         if self.TP_type == 'Linear':
             self.P2 = 10.**self.config['model']['P2']
             self.T2 = self.config['model']['T2']
@@ -146,13 +154,32 @@ class Model:
         # Instantiate GENESIS only once based on the given model properties
         self.Genesis_instance = genesis.Genesis(self.P_min, self.P_max, self.N_layers, self.lam_min, self.lam_max, self.resolving_power, self.spacing, method = self.method)
         
-        
+        self.use_stellar_phoenix = self.config['model']['use_stellar_phoenix']
+        if self.use_stellar_phoenix:
+            phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
+            # phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 ## converting to J/m2/s/m
+            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 * phoenix_model_wave_inp * (sc.c/(phoenix_model_wave_inp**2.)) ## converting to J/m2/s
+
+            ## ; so multiply later by lam in metre before dividing the stellar spectrum  
+
+            start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
+            phoenix_spl = splrep(phoenix_model_wave_inp[start_ind:stop_ind], phoenix_model_flux_inp[start_ind:stop_ind])
+            self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
+            # import pdb
+            # pdb.set_trace()
+            ## Loaded PHOENIX model, the BUNIT is 'erg/s/cm^2/cm'	Unit of flux
+            ## Radiative flux unit is J/m2/s
+            ## 1 erg is 1e-7 J
+            ## PHOENIX model BUNIT needs to be converted from erg/s/cm^2/cm to  J/m2/s : convert to Joules and multiply by wavelength (to get rid of the cm factor in denominator)
+            
+    
+         
     
     @property
     def gen(self):
-        """Get the Genesis object based on the latest value of parameters.
+        """Get the Genesis instance based on the latest value of parameters.
 
-        :return: Updated genesis object with model parameters set to the latest values.
+        :return: Updated genesis instance with model parameters set to the latest values.
         :rtype: genesis.Genesis
         """
 
@@ -195,6 +222,7 @@ class Model:
         gen_.profile(self.R_planet, self.log_g, self.P_ref) #Rp (Rj), log(g) cgs, Pref (log(bar))
         
         return gen_
+    
     
     
     def get_TP_profile(self):
@@ -269,7 +297,30 @@ class Model:
         
         return number_densities
     
-
+    def dissociation(self, sp_name = 'h2o'):
+        X_i = getattr(self, sp_name)
+        
+        alpha = getattr(self, 'alpha_' + sp_name)
+        log10_beta = getattr(self, 'log10_beta_' + sp_name)
+        beta = 10.** log10_beta
+        gamma = getattr(self, 'gamma_' + sp_name)
+        
+        T = np.copy(self.gen.T)
+        T[T<1700.0] = 1700.0
+        T[T>4000.0] = 4000.0
+        
+        P = self.gen.P.copy()/1E5#convert to bar
+        
+        P[P<1e-6] = 1e-6
+        P[P>200.0] = 200.0
+        Ad = np.power(10.0, beta/T - gamma)*np.power(P,alpha)
+        A = 1.0/np.sqrt(X_i) + 1.0/np.sqrt(Ad)
+        #A = 1.0/np.sqrt(np.power(10.0,self.A0[key])) + 1.0/np.sqrt(Ad)
+        A = 1.0/(A*A)
+        
+        return A
+    
+    
     @property
     def abundances_dict(self):
         """Setup the dictionary of abundances based on the latest set of parameters.
@@ -286,6 +337,22 @@ class Model:
                     X[sp] = np.full(len(self.gen.P), getattr(self, sp))
             X["he"] = np.full(len(self.gen.P), self.he)
             
+            metals = np.full(len(self.gen.P), 0.)
+            for sp in self.species:
+                if sp != "h2":
+                    metals+=X[sp]
+                
+                X["h2"] = 1.0 - metals
+                
+        elif self.chemistry == 'free_chem_with_dissoc': # free chemistry with dissociation
+            
+            for sp in self.species:
+                if sp not in ["h2", "he"] + list(self.sp_dissoc_list):
+                    X[sp] = np.full(len(self.gen.P), getattr(self, sp))
+                elif sp in list(self.sp_dissoc_list):
+                    X[sp] = self.dissociation(sp_name = sp)
+            X["he"] = np.full(len(self.gen.P), self.he)
+
             metals = np.full(len(self.gen.P), 0.)
             for sp in self.species:
                 if sp != "h2":
@@ -320,15 +387,39 @@ class Model:
         if self.method == "transmission":
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
             spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
-            spec /= ((self.R_star*6.96e8)**2.0)
+            spec /= ((self.R_star*6.957e8)**2.0)
             # spec = 1.-spec
             spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(self.abundances_dict)
-            spec /= self.planck_lam_star(self.R_star, self.gen.lam, self.T_eff)
+            spec /= self.stellar_flux(self.R_star, self.gen.lam, self.T_eff)
         
         return (10**9) * self.gen.lam, 10**self.log_fs * spec 
+    
+         
+    def stellar_flux(self, Rs, lam, T):
+        """Compute the flux from the star, either as blackbody or from a PHOENIX model.
+
+        :param Rs: Stellar radius, in terms of solar radius.
+        :type Rs: float
+        :param lam: Wavelength range, in micron.
+        :type lam: array
+        :param T: Effective stellar temperature.
+        :type T: float
+        :return: Blackbody flux of the star.
+        :rtype: array
+        """
+        if not self.use_stellar_phoenix:
+            lam_5 = lam*lam*lam*lam*lam
+            Bs = (2.0*sc.h*sc.c*sc.c)/(lam_5*(np.expm1((sc.h*sc.c)/(lam*sc.k*T))))
+            # import pdb
+            # pdb.set_trace()
+            return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
+        else:
+            # phoenix_flux = self.phoenix_model_flux * (sc.c/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
+            phoenix_flux = self.phoenix_model_flux * np.pi*Rs*Rs*6.957e8*6.957e8
+            return phoenix_flux
     
     def convolve_spectra_to_instrument_resolution(self, model_spec_orig=None):
         """Convolve the given input model spectrum to the instrument resolution. 
@@ -434,22 +525,9 @@ class Model:
         
         return model_reprocess, avoid_mask # see line 684 in croc on how to use this output further 
         
-                 
-    def planck_lam_star(self, Rs, lam, T):
-        """Compute the Blackbody flux from the star.
+    
 
-        :param Rs: Stellar radius, in terms of solar radius.
-        :type Rs: float
-        :param lam: Wavelength range, in micron.
-        :type lam: array
-        :param T: Effective stellar temperature.
-        :type T: float
-        :return: Blackbody flux of the star.
-        :rtype: array
-        """
-        lam_5 = lam*lam*lam*lam*lam
-        Bs = (2.0*sc.h*sc.c*sc.c)/(lam_5*(np.expm1((sc.h*sc.c)/(lam*sc.k*T))))
-        return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
+            
     
     def logL_fast(self, theta, datadetrend_dd = None, order_inds = None):
         """Function to calculate the total logL for data from a single instrument and all dates combined as per the 

@@ -32,7 +32,7 @@ from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
 ### Define the global name for the instrument (should match the instrument name specified in the croc_config.yaml file)
-INST_GLOBAL = 'crires' ## could change this when running for multiple instruments in future implementation.
+INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
 ##########################################################################################################################
 ##########################################################################################################################
 
@@ -261,7 +261,7 @@ plt.legend()
 plt.savefig(savedir + 'init_model_all_species.pdf', format='pdf', bbox_inches='tight')
 np.save(savedir + 'init_forward_models.npy', init_model_dd)
 
-
+# exit()
 ################################################################
 ################################################################
 """

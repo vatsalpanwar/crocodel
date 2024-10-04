@@ -1,5 +1,5 @@
 infostring: 
-  info: 'TEST_PHOENIX_IGRINS_WASP-122b_Bezier_4_nodes_TP_log_fs_fix_0_include_h_minus__eq_chem_'
+  info: 'IGRINS_WASP-122b_Bezier_4_nodes_TP_log_fs_fix_0_free_chem_with_H2O_dissoc_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -7,15 +7,15 @@ retrieval_setup:
   N_live: 500
 
 workdir:
-  results: '/home/astro/phsprd/code/crocodel/examples/wasp122b/results/retrievals/'
-  KpVsys_maps_fixed_params: '/home/astro/phsprd/code/crocodel/examples/wasp122b/results/KpVsys_maps_fixed_params/'
+  results: '/home/astro/phsprd/wasp122b/results/retrievals/'
+  KpVsys_maps_fixed_params: '/home/astro/phsprd/wasp122b/results/KpVsys_maps_fixed_params/'
 
 data: # Each high level key under data should be the name of the instrument.
   igrins:
     method: emission
     resolution: 45000
     dates:
-      '2023-12-04': ['/home/astro/phsprd/code/crocodel/examples/wasp122b/data/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
+      '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
     
     N_order_all : 42
 
@@ -146,10 +146,7 @@ model:
                                  # on if you want to run the retrieval on just each instrument listed above (one or more)
                                  # independently or jointly. This is to be implemented in future.s 
   
-  chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
-  logZ_planet: 0.0
-  C_to_O: 0.5
-
+  
   ######## For WASP-122b parameters Gaia
   R_star: 1.56 # in terms of R_sun 
   T_eff: 5622. # K 
@@ -170,10 +167,9 @@ model:
   phase_offset: 0.
   Kp: 188.055
 
-  use_stellar_phoenix: True
+  use_stellar_phoenix: False
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
-
 
   # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # # From Sid'e email and looking at set_T function, 
@@ -218,11 +214,26 @@ model:
   T3: 2944.
   log_P3: -6. 
 
+  ####### Define chemistry here 
+  # chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  # logZ_planet: 0.0
+  # C_to_O: 0.5
+
+  chemistry: 'free_chem_with_dissoc' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  sp_dissoc_list: ['h2o']
+  ## list of molecules for which you want to fit a dissociation profile ; the alpha, beta, gamma variable names for 
+  ## these molecules e.g. for h2o, will be alpha_h2o, beta_h2o, and gamma_h2o ; initiate below and in the list of free params with priors. 
+  sp_dissoc_params:
+    alpha_h2o: 2.
+    log10_beta_h2o: 4.68
+    gamma_h2o: 15.9
+
+
   # Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
   abundances:
     co: -4.5
     h2o: -4.5
-    # oh: -4
+    oh: -4
     # fe: -4.3
     # ti: -4.
     # si: -4.
@@ -234,7 +245,7 @@ model:
   species_name_fastchem:
     co: 'C1O1'
     h2o: 'H2O1'
-    # oh: 'HO1'
+    oh: 'H1O1'
     ch4: 'C1H4'
     nh3: 'H3N1'
     co2: 'C1O2'
@@ -248,14 +259,7 @@ model:
   # Even when you are not using a Gaussian prior, keep some placeholder values in the bound.
 
   free_params:
-    # phase_offset:
-    #   fix_test:0.
-    #   prior: Uniform
-    #   bound: [-0.02,0.02,-0.009,0.01]
 
-    # log_fs:
-    #   prior: Uniform # 
-    #   bound: [-2., 1.,0., 0.1]
     Kp:
       fix_test: 195
       prior: Uniform
@@ -359,21 +363,44 @@ model:
       fix_test: 3175.55
       prior: Uniform
       bound: [400., 3500., 0., 1.]
-
-
-    logZ_planet:
-      fix_test: 0.0
-      prior: Uniform
-      bound: [-6., 6., 0.0,1.] # log10 of the VMRs # change to -10 to -1
     
-    C_to_O:
-      fix_test: 0.5
+    ### ### ### ### ### ### ### ### ###
+    ### Abundances 
+    ### ### ### ### ### ### ### ### ###
+    
+    co:
+      fix_test: -5.04
       prior: Uniform
-      bound: [0., 2., 0.5,0.1] # log10 of the VMRs # change to -10 to -1
+      bound: [-15., -1., -3., 1.] # log10 of the VMRs # change to -10 to -1
+
+    h2o:
+      fix_test: -5.2 
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+    
+    oh:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
     
     h_minus:
       fix_test: -14.6
       prior: Uniform
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    # alpha_h2o: 
+    #   fix_test: 2.
+    #   prior: Uniform
+    #   bound: [0.1,4., 0., 0.]
+    
+    log10_beta_h2o:
+      fix_test: 4.68
+      prior: Uniform
+      bound: [2.,6.,0.,0.]
+
+    gamma_h2o:      
+      fix_test: 15.9
+      prior: Uniform
+      bound: [5., 20.,0.,0.]
       
 
