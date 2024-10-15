@@ -117,7 +117,7 @@ def do_expreg(regressor=None, data=None, method='lm'):
 #########################################################################################################
 
 def subplot_datacube(axis=None, datacube=None, phases=None, wavsoln=None, title=None, setxlabel=False,
-                     vminvmax=None):
+                     vminvmax=None, colormap = 'viridis'):
     """
     This function makes a 2D plot of a datacube with specified phases, and user specified title.
     :param axis: Axis object corresponding to a subplot from a predefined figure.
@@ -140,10 +140,10 @@ def subplot_datacube(axis=None, datacube=None, phases=None, wavsoln=None, title=
     """
     if vminvmax is None:
         plot_hand = axis.pcolormesh(wavsoln, phases, datacube,
-                                    norm=mpl.colors.Normalize(), shading='auto', rasterized = True)
+                                    norm=mpl.colors.Normalize(), shading='auto', rasterized = True, cmap = colormap)
     else:
         plot_hand = axis.pcolormesh(wavsoln, phases, datacube,
-                                    norm=mpl.colors.Normalize(vmin=vminvmax[0], vmax=vminvmax[1]), shading='auto', rasterized = True)
+                                    norm=mpl.colors.Normalize(vmin=vminvmax[0], vmax=vminvmax[1]), shading='auto', rasterized = True, cmap = colormap)
     axis.set_title(title)
     axis.set_ylabel(r'$\phi$')
     if setxlabel:

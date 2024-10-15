@@ -75,6 +75,7 @@ class Model:
             self.solar_abundances = np.array(self.fastchem.getElementAbundances())
             self.logZ_planet = self.config['model']['logZ_planet']
             self.C_to_O = self.config['model']['C_to_O']
+            self.use_C_to_O = self.config['model']['use_C_to_O']
             
             self.index_C = self.fastchem.getElementIndex('C')
             self.index_O = self.fastchem.getElementIndex('O')
@@ -151,58 +152,41 @@ class Model:
         
         # Instantiate GENESIS only once based on the given model properties
         self.Genesis_instance = genesis.Genesis(self.P_min, self.P_max, self.N_layers, self.lam_min, self.lam_max, self.resolving_power, self.spacing, method = self.method)
-        
-        
     
     @property
-    def gen(self):
-        """Get the Genesis object based on the latest value of parameters.
-
-        :return: Updated genesis object with model parameters set to the latest values.
-        :rtype: genesis.Genesis
-        """
-
-        gen_ = self.Genesis_instance
+    def mol_mass_dict(self):
         
-        if self.TP_type == 'Linear':
-            # From Sid'e email and looking at set_T function, 
-            # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! All in log_Pascals
-            gen_.set_T(self.P1, self.T1, self.P2, self.T2) # This part should have options to choose different kinds of TP profile.
+        mol_mass = {
+            'co':28.01,
+            'co2':44.01,
+            'h2o':18.01528,
+            'ch4': 16.04,
+            'h2':2.016,
+            'he':4.0026,
+        }
+        return mol_mass
+    
+    def get_MMW(self):
+        _, press =  self.get_TP_profile() 
         
-        elif self.TP_type == 'Guillot':
-            gen_.T = aut.guillot_TP(pressure_levels = gen_.P.copy()/1e5, # All input pressure values should be in bars for this (the function will convert to Pascals itself)
-                                   T_int = self.T_int, 
-                                   T_eq = None, 
-                                   gamma = 10.**self.log_gamma, 
-                                   gravity = 10.**self.log_g, 
-                                    kappa_IR = 10.**self.log_kappa_IR, 
-                                    f_global = self.f_global,
-                                    T_irr = self.T_irr)
-        elif self.TP_type == 'custom_fixed':
-            tempS, presS = self.TP_data['T[K]'], self.TP_data['P[bar]']
-            csS = interp1d(presS[::-1], tempS[::-1], fill_value='extrapolate')
-            pOut = gen_.P.copy() / 1E5
-            tOut = csS(pOut)
-            gen_.T = tOut
-        elif self.TP_type == 'Madhusudhan_Seager':
-            gen_.T = aut.madhusudhan_seager_TP(pressure_levels = gen_.P.copy()/1e5, # All input pressure values should be in bars for this (the function will convert to Pascals itself)
-                                               log_Pset = 0., Tset = self.T_set, 
-                                               alpha1 = self.alpha1, alpha2 = self.alpha2,
-                                               log_P1 = self.log_P1, log_P2 = self.log_P2, 
-                                               log_P3 = self.log_P3, beta = 0.5)
-        
-        elif self.TP_type == 'Bezier_4_nodes':
-            gen_.T = aut.PTbez(logParr = np.log10(gen_.P.copy()/1e5),
-                                Ps = [self.log_P3, self.log_P2, self.log_P1, self.log_P0],
-                                Ts = [self.T3, self.T2, self.T1, self.T0]) 
-                               # All input pressure values should be in bars for this (the function will convert to Pascals itself)
-
+        X_dict = self.abundances_dict
+        ## Use the abundance profile to calculate the MMW 
+        mol_mass = self.mol_mass_dict
+        MMW = np.ones((len(press), ))
+        for sp in X_dict.keys():
+            MMW+= X_dict[sp] * mol_mass[sp]
             
-        gen_.profile(self.R_planet, self.log_g, self.P_ref) #Rp (Rj), log(g) cgs, Pref (log(bar))
+        # plt.figure()
+        # plt.plot(MMW, press)
+        # plt.ylim(press.max(), press.min())
+        # plt.yscale('log')
+        # plt.xlabel('MMW')
+        # plt.ylabel('Pressure [bar]')
+        # plt.show()
+        print(MMW)
+        print(np.mean(MMW))
+        return MMW
         
-        return gen_
-    
-    
     def get_TP_profile(self):
         """
         Return TP profile, as arrays of T [K] and P [bars]. This function is useful for manipulating the original Genesis instance (and NOT for retrieval, that is done already as part of gen function above which 
@@ -244,6 +228,25 @@ class Model:
             
         return gen_.T, gen_.P.copy() / 1E5 
 
+    @property
+    def gen(self):
+        """Get the Genesis object based on the latest value of parameters.
+
+        :return: Updated genesis object with model parameters set to the latest values.
+        :rtype: genesis.Genesis
+        """
+
+        gen_ = self.Genesis_instance
+        ### Set the TP profile 
+        temp, _ =  self.get_TP_profile() 
+        gen_.T = temp
+        ### Get the MMW 
+        MMW = self.get_MMW()
+        MMW_mean = np.mean(MMW)
+        
+        gen_.profile(self.R_planet, self.log_g, self.P_ref, mu = MMW_mean) #Rp (Rj), log(g) cgs, Pref (log(bar))
+        
+        return gen_
     
     def get_eqchem_abundances(self):
         """Given TP profile, and the C/O and metallicity, compute the equilibrium chemistry abundances of the species included in the retrieval. 
@@ -260,13 +263,15 @@ class Model:
             if self.fastchem.getElementSymbol(j) != 'H' and self.fastchem.getElementSymbol(j) != 'He':
                 element_abundances[j] *= 10.**self.logZ_planet
         
-        # Set the abundance of C with respect to O according to the C/O ratio
-        element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
+        # Set the abundance of C with respect to O according to the C/O ratio ; only do this if use_C_to_O flag is set to True in the config file 
+        if self.use_C_to_O:
+            element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
 
         self.fastchem.setElementAbundances(element_abundances)
+        temp, press = self.get_TP_profile()
         
-        self.input_data.temperature = self.gen.T
-        self.input_data.pressure = self.gen.P.copy() / 1E5
+        self.input_data.temperature = temp
+        self.input_data.pressure = press ## pressure is already in bar as calculated by get_TP_profile
         
         fastchem_flag = self.fastchem.calcDensities(self.input_data, self.output_data)
         
@@ -283,16 +288,16 @@ class Model:
         :return: Abundance dictionary.
         :rtype: dict
         """
-        
+        temp, press = self.get_TP_profile()
         X = {}
         
         if self.chemistry == 'free_chem':
             for sp in self.species:
                 if sp not in ["h2", "he"]:
-                    X[sp] = np.full(len(self.gen.P), getattr(self, sp))
-            X["he"] = np.full(len(self.gen.P), self.he)
+                    X[sp] = np.full(len(press), getattr(self, sp))
+            X["he"] = np.full(len(press), self.he)
             
-            metals = np.full(len(self.gen.P), 0.)
+            metals = np.full(len(press), 0.)
             for sp in self.species:
                 if sp != "h2":
                     metals+=X[sp]
@@ -303,7 +308,8 @@ class Model:
             number_densities = self.get_eqchem_abundances()
             #total gas particle number density from the ideal gas law 
             #used later to convert the number densities to mixing ratios
-            gas_number_density = ( ( self.gen.P.copy() / 1E5 ) *1e6 ) / ( con.k_B.cgs * self.gen.T )
+            
+            gas_number_density = ( ( press ) *1e6 ) / ( con.k_B.cgs * temp )
             # gas_number_density = ( self.gen.P.copy() * un.Pa ) / ( con.k_B * self.gen.T * un.K )
             
             for sp in self.species:
@@ -335,7 +341,7 @@ class Model:
             spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
             spec /= ((self.R_star*6.96e8)**2.0)
             # spec = 1.-spec
-            spec = -spec
+            # spec = spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(self.abundances_dict)
