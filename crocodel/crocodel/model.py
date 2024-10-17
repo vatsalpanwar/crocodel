@@ -13,6 +13,7 @@ from scipy import interpolate
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from astropy.convolution import Gaussian1DKernel, convolve
+from scipy.signal import fftconvolve
 from . import astro_utils as aut
 from tqdm import tqdm 
 from astropy.io import ascii as ascii_reader
@@ -69,6 +70,7 @@ class Model:
             self.solar_abundances = np.array(self.fastchem.getElementAbundances())
             self.logZ_planet = self.config['model']['logZ_planet']
             self.C_to_O = self.config['model']['C_to_O']
+            self.use_C_to_O = self.config['model']['use_C_to_O']
             
             self.index_C = self.fastchem.getElementIndex('C')
             self.index_O = self.fastchem.getElementIndex('O')
@@ -88,8 +90,8 @@ class Model:
             self.sp_dissoc_list  = self.config['model']['sp_dissoc_list']
             for sp in self.sp_dissoc_list:
                 setattr(self, 'alpha_'+ sp , self.config['model']['sp_dissoc_params']['alpha_'+sp])
-                setattr(self, 'log10_beta_'+ sp , self.config['model']['sp_dissoc_params']['alpha_'+sp])
-                setattr(self, 'gamma_'+ sp , self.config['model']['sp_dissoc_params']['alpha_'+sp])
+                setattr(self, 'log10_beta_'+ sp , self.config['model']['sp_dissoc_params']['log10_beta_'+sp])
+                setattr(self, 'gamma_'+ sp , self.config['model']['sp_dissoc_params']['gamma_'+sp])
                 
         
         if self.TP_type == 'Linear':
@@ -158,9 +160,7 @@ class Model:
         if self.use_stellar_phoenix:
             phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
             # phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 ## converting to J/m2/s/m
-            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 * phoenix_model_wave_inp * (sc.c/(phoenix_model_wave_inp**2.)) ## converting to J/m2/s
-
-            ## ; so multiply later by lam in metre before dividing the stellar spectrum  
+            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./sc.c) ## converting to J/m2/s
 
             start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
             phoenix_spl = splrep(phoenix_model_wave_inp[start_ind:stop_ind], phoenix_model_flux_inp[start_ind:stop_ind])
@@ -171,59 +171,66 @@ class Model:
             ## Radiative flux unit is J/m2/s
             ## 1 erg is 1e-7 J
             ## PHOENIX model BUNIT needs to be converted from erg/s/cm^2/cm to  J/m2/s : convert to Joules and multiply by wavelength (to get rid of the cm factor in denominator)
-            
     
-         
+    ####### Rotation kernel #######
+    def rotation(self, atm, wmod, mod):
+        assert(atm.params["rot"]>=1.0)
+        rker = self.get_rot_ker(atm.params["rot"], wmod)
+        hlen = int((len(rker)-1)/2)
+        spec = fftconvolve(mod, rker, mode="same")
+        return wmod[hlen:-hlen], spec[hlen:-hlen]
+    
+    def get_rot_ker(self, vsini, wStar):
+        nx, = wStar.shape
+        dRV = np.mean(2.0*(wStar[1:]-wStar[0:-1])/(wStar[1:]+wStar[0:-1]))*(sc.c*1.0e-3)
+        nker = 401
+        hnker = (nker-1)//2
+        rker = np.zeros(nker)
+        for ii in range(nker):
+            ik = ii - hnker
+            x = ik*dRV / vsini
+            if np.abs(x) < 1.0:
+                y = np.sqrt(1-x**2)
+                rker[ii] = y
+        rker /= rker.sum()
+        assert(rker[0]==0.0 and rker[-1]==0.0)
+        rker = rker[rker>0]
+        return rker
     
     @property
-    def gen(self):
-        """Get the Genesis instance based on the latest value of parameters.
-
-        :return: Updated genesis instance with model parameters set to the latest values.
-        :rtype: genesis.Genesis
-        """
-
-        gen_ = self.Genesis_instance
+    def mol_mass_dict(self):
         
-        if self.TP_type == 'Linear':
-            # From Sid'e email and looking at set_T function, 
-            # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! All in log_Pascals
-            gen_.set_T(self.P1, self.T1, self.P2, self.T2) # This part should have options to choose different kinds of TP profile.
+        mol_mass = {
+            'co':28.01,
+            'co2':44.01,
+            'h2o':18.01528,
+            'ch4': 16.04,
+            'h2':2.016,
+            'he':4.0026,
+            'hcn':27.0253
+        }
+        return mol_mass  
+    
+    def get_MMW(self):
+        _, press =  self.get_TP_profile() 
         
-        elif self.TP_type == 'Guillot':
-            gen_.T = aut.guillot_TP(pressure_levels = gen_.P.copy()/1e5, # All input pressure values should be in bars for this (the function will convert to Pascals itself)
-                                   T_int = self.T_int, 
-                                   T_eq = None, 
-                                   gamma = 10.**self.log_gamma, 
-                                   gravity = 10.**self.log_g, 
-                                    kappa_IR = 10.**self.log_kappa_IR, 
-                                    f_global = self.f_global,
-                                    T_irr = self.T_irr)
-        elif self.TP_type == 'custom_fixed':
-            tempS, presS = self.TP_data['T[K]'], self.TP_data['P[bar]']
-            csS = interp1d(presS[::-1], tempS[::-1], fill_value='extrapolate')
-            pOut = gen_.P.copy() / 1E5
-            tOut = csS(pOut)
-            gen_.T = tOut
-        elif self.TP_type == 'Madhusudhan_Seager':
-            gen_.T = aut.madhusudhan_seager_TP(pressure_levels = gen_.P.copy()/1e5, # All input pressure values should be in bars for this (the function will convert to Pascals itself)
-                                               log_Pset = 0., Tset = self.T_set, 
-                                               alpha1 = self.alpha1, alpha2 = self.alpha2,
-                                               log_P1 = self.log_P1, log_P2 = self.log_P2, 
-                                               log_P3 = self.log_P3, beta = 0.5)
-        
-        elif self.TP_type == 'Bezier_4_nodes':
-            gen_.T = aut.PTbez(logParr = np.log10(gen_.P.copy()/1e5),
-                                Ps = [self.log_P3, self.log_P2, self.log_P1, self.log_P0],
-                                Ts = [self.T3, self.T2, self.T1, self.T0]) 
-                               # All input pressure values should be in bars for this (the function will convert to Pascals itself)
-
+        X_dict = self.abundances_dict
+        ## Use the abundance profile to calculate the MMW 
+        mol_mass = self.mol_mass_dict
+        MMW = np.ones((len(press), ))
+        for sp in X_dict.keys():
+            MMW+= X_dict[sp] * mol_mass[sp]
             
-        gen_.profile(self.R_planet, self.log_g, self.P_ref) #Rp (Rj), log(g) cgs, Pref (log(bar))
-        
-        return gen_
-    
-    
+        # plt.figure()
+        # plt.plot(MMW, press)
+        # plt.ylim(press.max(), press.min())
+        # plt.yscale('log')
+        # plt.xlabel('MMW')
+        # plt.ylabel('Pressure [bar]')
+        # plt.show()
+        print(MMW)
+        print(np.mean(MMW))
+        return MMW
     
     def get_TP_profile(self):
         """
@@ -265,7 +272,29 @@ class Model:
                                 Ts = [self.T3, self.T2, self.T1, self.T0]) 
             
         return gen_.T, gen_.P.copy() / 1E5 
+    
+    
+    @property
+    def gen(self):
+        """Get the Genesis object based on the latest value of parameters.
 
+        :return: Updated genesis object with model parameters set to the latest values.
+        :rtype: genesis.Genesis
+        """
+
+        gen_ = self.Genesis_instance
+        ### Set the TP profile 
+        temp, _ =  self.get_TP_profile() 
+        gen_.T = temp
+        ### Get the MMW 
+        MMW = self.get_MMW()
+        print(MMW)
+        # MMW_mean = np.mean(MMW)
+        
+        gen_.profile(self.R_planet, self.log_g, self.P_ref, mu = MMW) #Rp (Rj), log(g) cgs, Pref (log(bar))
+        
+        return gen_    
+    
     
     def get_eqchem_abundances(self):
         """Given TP profile, and the C/O and metallicity, compute the equilibrium chemistry abundances of the species included in the retrieval. 
@@ -281,6 +310,10 @@ class Model:
         for j in range(0, self.fastchem.getElementNumber()):
             if self.fastchem.getElementSymbol(j) != 'H' and self.fastchem.getElementSymbol(j) != 'He':
                 element_abundances[j] *= 10.**self.logZ_planet
+                
+        # Set the abundance of C with respect to O according to the C/O ratio ; only do this if use_C_to_O flag is set to True in the config file 
+        if self.use_C_to_O:
+            element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
         
         # Set the abundance of C with respect to O according to the C/O ratio
         element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
@@ -418,7 +451,7 @@ class Model:
             return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
         else:
             # phoenix_flux = self.phoenix_model_flux * (sc.c/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
-            phoenix_flux = self.phoenix_model_flux * np.pi*Rs*Rs*6.957e8*6.957e8
+            phoenix_flux = self.phoenix_model_flux *Rs*Rs*6.957e8*6.957e8
             return phoenix_flux
     
     def convolve_spectra_to_instrument_resolution(self, model_spec_orig=None):
