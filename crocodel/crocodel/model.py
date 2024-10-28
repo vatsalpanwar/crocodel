@@ -42,6 +42,7 @@ class Model:
         # Stellar properties
         self.R_star = self.config['model']['R_star'] # Stellar radius, in terms of R_Sun
         self.T_eff = self.config['model']['T_eff'] # Stellar effective temperature, in K        
+        self.vsini = self.config['model']['vsini']
         
         # Other model properties
         self.P_min = self.config['model']['P_min'] # Minimum pressure level for model calculation, in bars 
@@ -51,6 +52,10 @@ class Model:
         self.lam_max = self.config['model']['lam_max'] # Maximum wavelength for model calculation, in microns
         self.resolving_power = self.config['model']['R_power'] # Resolving power for the model calculation (use 250000 which will later be convolved down)
         self.spacing = self.config['model']['spacing'] # Wavelength grid spacing, use 'R' for constant resolving power
+        
+        self.fix_MMW = self.config['model']['fix_MMW']
+        self.MMW_value = self.config['model']['MMW_value']
+        
         self.chemistry = self.config['model']['chemistry']
         
         # Load the names of all the absorbing species to be included in the model
@@ -60,7 +65,6 @@ class Model:
         if self.chemistry == 'eq_chem':
             #create a FastChem object
             #it needs the locations of the element abundance and equilibrium constants files
-            #these locations have to be relative to the one this Python script is called from
             self.fastchem = pyfastchem.FastChem(
             '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
             '../fastchem_inputs/input/logK/logK.dat',
@@ -138,7 +142,6 @@ class Model:
         self.Kp = self.config['model']['Kp'] # Current value of Kp, in km/s
         self.Vsys = self.config['model']['Vsys'] # Current value of Vsys, in km/s
         
-        self.chemistry = self.config['model']['chemistry']
         
         self.Kp_pred = self.Kp # Expected value of Kp, in km/s
         self.Vsys_pred = self.Vsys # Expected value of Vsys, in km/s
@@ -163,8 +166,23 @@ class Model:
             phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./sc.c) ## converting to J/m2/s
 
             start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
-            phoenix_spl = splrep(phoenix_model_wave_inp[start_ind:stop_ind], phoenix_model_flux_inp[start_ind:stop_ind])
+            
+            #### FIRST rotationally broaden the PHOENIX Stellar flux, and then redampel to instrument resolution  
+            self.phoenix_model_flux_orig = phoenix_model_flux_inp[start_ind:stop_ind]
+            self.phoenix_model_wave_orig = phoenix_model_wave_inp[start_ind:stop_ind]
+            self.phoenix_model_wave_orig_nm = phoenix_model_wave_inp[start_ind:stop_ind] * 1e9 ## convert to nm for plotting 
+            
+            self.phoenix_model_flux_broaden, self.phoenix_model_wave_broaden = self.rotation(vsini = self.vsini, 
+                                                                                             model_wav = phoenix_model_wave_inp[start_ind:stop_ind], 
+                                                       model_spec = phoenix_model_flux_inp[start_ind:stop_ind])
+
+            
+            phoenix_spl = splrep(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
             self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
+            
+            #### Broaden the PHOENIX model flux by the rotational velocity 
+            # self.phoenix_model_flux, _ = self.rotation(vsini = self.vsini, model_wav = self.gen.lam, model_spec = self.phoenix_model_flux_unbroadened)
+            
             # import pdb
             # pdb.set_trace()
             ## Loaded PHOENIX model, the BUNIT is 'erg/s/cm^2/cm'	Unit of flux
@@ -173,16 +191,20 @@ class Model:
             ## PHOENIX model BUNIT needs to be converted from erg/s/cm^2/cm to  J/m2/s : convert to Joules and multiply by wavelength (to get rid of the cm factor in denominator)
     
     ####### Rotation kernel #######
-    def rotation(self, atm, wmod, mod):
-        assert(atm.params["rot"]>=1.0)
-        rker = self.get_rot_ker(atm.params["rot"], wmod)
-        hlen = int((len(rker)-1)/2)
-        spec = fftconvolve(mod, rker, mode="same")
-        return wmod[hlen:-hlen], spec[hlen:-hlen]
+    def rotation(self, vsini = None, model_wav = None, model_spec = None):
+        assert(vsini >= 1.0)
+        # assert(atm.params["rot"]>=1.0)
+        rker = self.get_rot_ker(vsini, model_wav)
+        # hlen = int((len(rker)-1)/2)
+        spec_conv = fftconvolve(model_spec, rker, mode="same")
+        # import pdb
+        # pdb.set_trace()
+        # return spec_conv[hlen:-hlen], model_wav[hlen:-hlen]
+        return spec_conv, model_wav
     
-    def get_rot_ker(self, vsini, wStar):
-        nx, = wStar.shape
-        dRV = np.mean(2.0*(wStar[1:]-wStar[0:-1])/(wStar[1:]+wStar[0:-1]))*(sc.c*1.0e-3)
+    def get_rot_ker(self, vsini, model_wav):
+        nx, = model_wav.shape
+        dRV = np.mean(2.0*(model_wav[1:]-model_wav[0:-1])/(model_wav[1:]+model_wav[0:-1]))*(sc.c*1.0e-3) ## Speed of light has been convereted to km/s
         nker = 401
         hnker = (nker-1)//2
         rker = np.zeros(nker)
@@ -207,29 +229,32 @@ class Model:
             'ch4': 16.04,
             'h2':2.016,
             'he':4.0026,
-            'hcn':27.0253
+            'hcn':27.0253,
+            'oh':17.00734,
+            'h_minus':1.009
         }
         return mol_mass  
     
     def get_MMW(self):
-        _, press =  self.get_TP_profile() 
-        
-        X_dict = self.abundances_dict
-        ## Use the abundance profile to calculate the MMW 
-        mol_mass = self.mol_mass_dict
-        MMW = np.ones((len(press), ))
-        for sp in X_dict.keys():
-            MMW+= X_dict[sp] * mol_mass[sp]
+        if self.fix_MMW:
+            MMW = self.MMW_value
+        else:
+            _, press =  self.get_TP_profile() 
             
-        # plt.figure()
-        # plt.plot(MMW, press)
-        # plt.ylim(press.max(), press.min())
-        # plt.yscale('log')
-        # plt.xlabel('MMW')
-        # plt.ylabel('Pressure [bar]')
-        # plt.show()
-        print(MMW)
-        print(np.mean(MMW))
+            X_dict = self.abundances_dict
+            ## Use the abundance profile to calculate the MMW 
+            mol_mass = self.mol_mass_dict
+            MMW = np.ones((len(press), ))
+            for sp in X_dict.keys():
+                MMW+= X_dict[sp] * mol_mass[sp]
+                
+            # plt.figure()
+            # plt.plot(MMW, press)
+            # plt.ylim(press.max(), press.min())
+            # plt.yscale('log')
+            # plt.xlabel('MMW')
+            # plt.ylabel('Pressure [bar]')
+            # plt.show()
         return MMW
     
     def get_TP_profile(self):
@@ -288,7 +313,7 @@ class Model:
         gen_.T = temp
         ### Get the MMW 
         MMW = self.get_MMW()
-        print(MMW)
+        # print(MMW)
         # MMW_mean = np.mean(MMW)
         
         gen_.profile(self.R_planet, self.log_g, self.P_ref, mu = MMW) #Rp (Rj), log(g) cgs, Pref (log(bar))
@@ -298,7 +323,7 @@ class Model:
     
     def get_eqchem_abundances(self):
         """Given TP profile, and the C/O and metallicity, compute the equilibrium chemistry abundances of the species included in the retrieval. 
-        The outputs from this can be used when constructing the abundances dictionary.
+        The outputs from this can be used when constructing the abundances dictionary for GENESIS.
 
         :return: _description_
         :rtype: _type_
@@ -311,7 +336,8 @@ class Model:
             if self.fastchem.getElementSymbol(j) != 'H' and self.fastchem.getElementSymbol(j) != 'He':
                 element_abundances[j] *= 10.**self.logZ_planet
                 
-        # Set the abundance of C with respect to O according to the C/O ratio ; only do this if use_C_to_O flag is set to True in the config file 
+        # Set the abundance of C with respect to O according to the C/O ratio ; 
+        # only do this if use_C_to_O flag is set to True in the config file 
         if self.use_C_to_O:
             element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
         
@@ -320,8 +346,10 @@ class Model:
 
         self.fastchem.setElementAbundances(element_abundances)
         
-        self.input_data.temperature = self.gen.T
-        self.input_data.pressure = self.gen.P.copy() / 1E5
+        temp, press = self.get_TP_profile()
+        
+        self.input_data.temperature = temp
+        self.input_data.pressure = press ## pressure is already in bar as calculated by get_TP_profile
         
         fastchem_flag = self.fastchem.calcDensities(self.input_data, self.output_data)
         
@@ -338,11 +366,13 @@ class Model:
         beta = 10.** log10_beta
         gamma = getattr(self, 'gamma_' + sp_name)
         
-        T = np.copy(self.gen.T)
+        # T = np.copy(self.gen.T)
+        T, P = self.get_TP_profile()
+        
         T[T<1700.0] = 1700.0
         T[T>4000.0] = 4000.0
         
-        P = self.gen.P.copy()/1E5#convert to bar
+        # P = self.gen.P.copy()/1E5#convert to bar
         
         P[P<1e-6] = 1e-6
         P[P>200.0] = 200.0
@@ -363,14 +393,15 @@ class Model:
         """
         
         X = {}
+        temp, press = self.get_TP_profile()
         
         if self.chemistry == 'free_chem':
             for sp in self.species:
                 if sp not in ["h2", "he"]:
-                    X[sp] = np.full(len(self.gen.P), getattr(self, sp))
-            X["he"] = np.full(len(self.gen.P), self.he)
+                    X[sp] = np.full(len(press), getattr(self, sp))
+            X["he"] = np.full(len(press), self.he)
             
-            metals = np.full(len(self.gen.P), 0.)
+            metals = np.full(len(press), 0.)
             for sp in self.species:
                 if sp != "h2":
                     metals+=X[sp]
@@ -381,12 +412,12 @@ class Model:
             
             for sp in self.species:
                 if sp not in ["h2", "he"] + list(self.sp_dissoc_list):
-                    X[sp] = np.full(len(self.gen.P), getattr(self, sp))
+                    X[sp] = np.full(len(press), getattr(self, sp))
                 elif sp in list(self.sp_dissoc_list):
                     X[sp] = self.dissociation(sp_name = sp)
-            X["he"] = np.full(len(self.gen.P), self.he)
+            X["he"] = np.full(len(press), self.he)
 
-            metals = np.full(len(self.gen.P), 0.)
+            metals = np.full(len(press), 0.)
             for sp in self.species:
                 if sp != "h2":
                     metals+=X[sp]
@@ -396,8 +427,8 @@ class Model:
         elif self.chemistry == 'eq_chem':
             number_densities = self.get_eqchem_abundances()
             #total gas particle number density from the ideal gas law 
-            #used later to convert the number densities to mixing ratios
-            gas_number_density = ( ( self.gen.P.copy() / 1E5 ) *1e6 ) / ( con.k_B.cgs * self.gen.T )
+            #Needed to convert the number densities output from FastChem to mixing ratios
+            gas_number_density = ( ( press ) *1e6 ) / ( con.k_B.cgs * self.gen.T )
             # gas_number_density = ( self.gen.P.copy() * un.Pa ) / ( con.k_B * self.gen.T * un.K )
             
             for sp in self.species:
@@ -452,6 +483,7 @@ class Model:
         else:
             # phoenix_flux = self.phoenix_model_flux * (sc.c/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
             phoenix_flux = self.phoenix_model_flux *Rs*Rs*6.957e8*6.957e8
+            
             return phoenix_flux
     
     def convolve_spectra_to_instrument_resolution(self, model_spec_orig=None):

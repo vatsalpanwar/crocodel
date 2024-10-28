@@ -223,7 +223,7 @@ model:
   abundances:
     co: -4.5
     h2o: -4.5
-    # oh: -4
+    oh: -4
     # fe: -4.3
     # ti: -4.
     # si: -4.
@@ -235,7 +235,7 @@ model:
   species_name_fastchem:
     co: 'C1O1'
     h2o: 'H2O1'
-    # oh: 'HO1'
+    oh: 'H1O1'
     ch4: 'C1H4'
     nh3: 'H3N1'
     co2: 'C1O2'

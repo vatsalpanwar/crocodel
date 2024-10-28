@@ -1,5 +1,6 @@
 infostring: 
-  info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-BB_'
+  info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_'
+  # info: 'TEST_PHOENIX'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -151,6 +152,7 @@ model:
   R_star: 1.56 # in terms of R_sun 
   T_eff: 5622. # K 
   Vsys: 34.62 # In km/s. For WASP-122b the value is from Rodriguez et al. 2016 (Table 1, KELT-14b aka WASP-122b).
+  vsini: 7.7 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
   R_planet: 1.52 # In Jupiter radius
@@ -167,7 +169,7 @@ model:
   phase_offset: 0.
   Kp: 188.055
 
-  use_stellar_phoenix: False
+  use_stellar_phoenix: True
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 
@@ -219,6 +221,10 @@ model:
   # logZ_planet: 0.0
   # C_to_O: 0.5
   # use_C_to_O: True
+
+  ####### Mean molecular weight : do you want to fix it? 
+  fix_MMW: True
+  MMW_value: 2.35
 
   chemistry: 'free_chem_with_dissoc' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
   sp_dissoc_list: ['h2o']

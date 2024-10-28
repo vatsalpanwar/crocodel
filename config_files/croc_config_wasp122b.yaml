@@ -151,6 +151,7 @@ model:
   R_star: 1.56 # in terms of R_sun 
   T_eff: 5622. # K 
   Vsys: 34.62 # In km/s. For WASP-122b the value is from Rodriguez et al. 2016 (Table 1, KELT-14b aka WASP-122b).
+  vsini: 7.7 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
   R_planet: 1.52 # In Jupiter radius
@@ -167,6 +168,9 @@ model:
   phase_offset: 0.
   Kp: 188.055
 
+  use_stellar_phoenix: True
+  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+  phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 
   # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # # From Sid'e email and looking at set_T function, 

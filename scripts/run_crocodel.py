@@ -197,8 +197,10 @@ Define some global variables for running multinest
 """
 ################################################################
 ################################################################
-config_dd_global = config_dd
+
 datadetrend_dd_global = datadetrend_dd
+
+config_dd_global = config_dd
 planet_model_dict_global = planet_model_dict
 Vsys_range_bound, Vsys_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_step']
 Vsys_range_bound_trail = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range_trail']
@@ -260,6 +262,21 @@ plt.ylabel('Fp/Fs')
 plt.legend()
 plt.savefig(savedir + 'init_model_all_species.pdf', format='pdf', bbox_inches='tight')
 np.save(savedir + 'init_forward_models.npy', init_model_dd)
+
+
+####### Plot the stellar PHOENIX model, broadened and unbroadened 
+phoenix_orig, wave_orig, phoenix_broad_resamp = planet_model_dict_global[INST_GLOBAL].phoenix_model_flux_orig, planet_model_dict_global[INST_GLOBAL].phoenix_model_wave_orig_nm, planet_model_dict_global[INST_GLOBAL].phoenix_model_flux
+plt.figure(figsize = (12,5))
+plt.plot(wave_orig, phoenix_orig, 
+         color = 'xkcd:green', label = 'PHOENIX original', linewidth = 0.7 )
+plt.plot(wav, phoenix_broad_resamp, 
+         color = 'xkcd:red', label = 'PHOENIX broad', linewidth = 0.7 )
+
+plt.xlim(xmin = 1600, xmax = 1605) 
+plt.xlabel('Wavelength [nm]')
+plt.ylabel('Fs')
+plt.legend()
+plt.savefig(savedir + 'phoenix_models_orig_and_broad.pdf', format='pdf', bbox_inches='tight')
 
 # exit()
 ################################################################
