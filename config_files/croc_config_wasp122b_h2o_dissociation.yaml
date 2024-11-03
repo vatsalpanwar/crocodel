@@ -1,11 +1,11 @@
 infostring: 
-  info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_'
+  info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
   # info: 'TEST_PHOENIX'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
   sampler: 'multinest' 
-  N_live: 500
+  N_live: 1000
 
 workdir:
   results: '/home/astro/phsprd/wasp122b/results/retrievals/'
@@ -266,6 +266,10 @@ model:
   # Even when you are not using a Gaussian prior, keep some placeholder values in the bound.
 
   free_params:
+    log_fs:
+      fix_test: 0.03
+      prior: Uniform # 
+      bound: [-4., 1.,0., 0.1]
 
     Kp:
       fix_test: 195

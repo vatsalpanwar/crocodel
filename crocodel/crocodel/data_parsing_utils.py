@@ -27,12 +27,85 @@ import copy
 ################# ################# ################# ################# 
 ############### ############### ############### ############### ############### 
 
-def get_data_BJD_phase_Vbary_crires_plus(datadir = None,  T0 = None, Porb = None, save = False, savedir = None, retres = False, infostring = None):
+def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,  
+                                         T0_inp = None, Porb = None, save = False, 
+                                         savedir = None, retres = False, 
+                                         infostring = None, T0_format = None):
+    
+    #### Load the first parsed datacube without NaNs and outliers 
+    spec_dd_inp = np.load(spec_dd_path, allow_pickle = True).item()
+    
+    spec_dd_sav = {}
+    Nord, Nphi, Npix = spec_dd_inp['flux'].shape
     
     
+    times_BJD_TDB, Vbary, phases = np.ones(Nphi), np.ones(Nphi), np.ones(Nphi)
+    
+    for it in range(Nphi):
+        # import pdb
+        # pdb.set_trace()
+        
+        ## Time stuff 
+        radec = str(spec_dd_inp['ra'][it]) + '\t' + str(spec_dd_inp['dec'][it])
+        
+        paranal = EarthLocation.of_site('paranal')
+        t_stamp =  Time(spec_dd_inp['mjd-obs'][it], format = 'mjd', location = paranal, 
+                        scale = 'utc')
+        if T0_format == 'JD':
+            T0_ref = Time(T0_inp, format = 'jd', location = paranal, 
+                            scale = 'utc')
+            
+            star_coord = SkyCoord([radec], unit=(un.hourangle, un.deg), frame = spec_dd_inp['radesys'] )
+            
+            ## Calculate the light correction time for the t_stamp 
+            timecorrection_delta = t_stamp.light_travel_time(star_coord,'barycentric')
+            time_corrected = t_stamp.tdb + timecorrection_delta
+            
+            T0_delta = T0_ref.light_travel_time(star_coord,'barycentric')
+            T0 = T0_ref.tdb + T0_delta
+            
+        elif T0_format == 'BJD':
+            T0_ref = Time(T0_inp, format = 'jd', location = paranal, 
+                            scale = 'utc')
+            
+            star_coord = SkyCoord([radec], unit=(un.hourangle, un.deg), frame = spec_dd_inp['radesys'])
+            
+            ## Calculate the light correction time for the t_stamp 
+            timecorrection_delta = t_stamp.light_travel_time(star_coord,'barycentric')
+            time_corrected = t_stamp.tdb + timecorrection_delta
+            T0 = T0_ref.tdb
+        
+        T0 = T0.value
+        
+        ## Calculate BERV
+        barycorr = star_coord.radial_velocity_correction(obstime=time_corrected)
+        Vbary_ = -barycorr.to(un.km/un.s).value
+        
+        ## Calculate phase 
+        phase = (time_corrected[0].jd-T0) / Porb
+        
+        ## Populate arrays 
+        times_BJD_TDB[it], Vbary[it], phases[it] = time_corrected[0].jd, Vbary_, phase
+    
+    airmass = None
+    datestr = Time(times_BJD_TDB, format = 'jd')[0].isot.split("T")[0]
+    file_name = 'spdatacube' + infostring + '_' + datestr + '_spdd.npy'
+    spec_dd_sav['spdatacube'] = spec_dd_inp['flux']
+    spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
+    spec_dd_sav['airmass'] = None ## not saving airmasses for now 
+    spec_dd_sav['time'] = times_BJD_TDB
+    spec_dd_sav['bary_RV'] = Vbary
+    spec_dd_sav['phases'] = phases
+    
+    print('phases: ', phases)
 
+    if save:
+        np.save(savedir + file_name, spec_dd_sav)
+    
+    if retres:
+        return spec_dd_sav['spdatacube'], spec_dd_sav['wavsoln'], times_BJD_TDB, Vbary, phases, airmass
 
-
+    
 
 ################## IGRINS ############### ############### ############### 
 ### Loop through each file, first for H and then for K band; read in the time, and  

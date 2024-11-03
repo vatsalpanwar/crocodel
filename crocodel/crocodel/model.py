@@ -176,7 +176,7 @@ class Model:
                                                                                              model_wav = phoenix_model_wave_inp[start_ind:stop_ind], 
                                                        model_spec = phoenix_model_flux_inp[start_ind:stop_ind])
 
-            
+                        
             phoenix_spl = splrep(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
             self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
             

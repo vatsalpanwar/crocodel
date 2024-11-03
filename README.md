@@ -1,2 +1,2 @@
 # crocodel
-A Python package for high-resolution cross-correlation spectroscopy retrievals of exoplanet atmospheres.
+A Python package for performing cross-correlation analysis and Baeysian inference (often referred to as retrievals) on high-resolution Doppler spectroscopy obervations of exoplanet atmospheres. This package can perform both free chemistry and equilibrium chemistry (based on FastChem) retrievals using MultiNest, and requires GENESIS or another forward modeling code for computing models for transmission or emission spectrum.   
