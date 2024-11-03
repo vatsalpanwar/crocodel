@@ -6,6 +6,7 @@ sys.path.insert(0, "/Users/vatsalpanwar/source/work/astro/projects/Warwick/code/
 import genesis
 
 import scipy.constants as sc
+from astropy.io import fits
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
 from scipy.interpolate import splev, splrep
@@ -51,6 +52,9 @@ class Model:
         self.resolving_power = self.config['model']['R_power'] # Resolving power for the model calculation (use 250000 which will later be convolved down)
         self.spacing = self.config['model']['spacing'] # Wavelength grid spacing, use 'R' for constant resolving power
         self.chemistry = self.config['model']['chemistry']
+        
+        self.fix_MMW = self.config['model']['fix_MMW']
+        self.MMW_value = self.config['model']['MMW_value']
         
         # Load the names of all the absorbing species to be included in the model
         self.species = np.array(list(self.config['model']['abundances'].keys()))
@@ -152,39 +156,58 @@ class Model:
         
         # Instantiate GENESIS only once based on the given model properties
         self.Genesis_instance = genesis.Genesis(self.P_min, self.P_max, self.N_layers, self.lam_min, self.lam_max, self.resolving_power, self.spacing, method = self.method)
+        
+        self.use_stellar_phoenix = self.config['model']['use_stellar_phoenix']
+        if self.use_stellar_phoenix:
+            phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
+            # phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 ## converting to J/m2/s/m
+            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./sc.c) ## converting to J/m2/s
+
+            start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
+            phoenix_spl = splrep(phoenix_model_wave_inp[start_ind:stop_ind], phoenix_model_flux_inp[start_ind:stop_ind])
+            self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
+            # import pdb
+            # pdb.set_trace()
+            ## Loaded PHOENIX model, the BUNIT is 'erg/s/cm^2/cm'	Unit of flux
+            ## Radiative flux unit is J/m2/s
+            ## 1 erg is 1e-7 J
+            ## PHOENIX model BUNIT needs to be converted from erg/s/cm^2/cm to  J/m2/s : convert to Joules and multiply by wavelength (to get rid of the cm factor in denominator)
     
     @property
     def mol_mass_dict(self):
         
         mol_mass = {
+            'na':22.989769,
             'co':28.01,
             'co2':44.01,
             'h2o':18.01528,
             'ch4': 16.04,
             'h2':2.016,
             'he':4.0026,
+            'hcn':27.0253
         }
         return mol_mass
     
     def get_MMW(self):
-        _, press =  self.get_TP_profile() 
-        
-        X_dict = self.abundances_dict
-        ## Use the abundance profile to calculate the MMW 
-        mol_mass = self.mol_mass_dict
-        MMW = np.ones((len(press), ))
-        for sp in X_dict.keys():
-            MMW+= X_dict[sp] * mol_mass[sp]
+        if self.fix_MMW:
+            MMW = self.MMW_value
+        else:
+            _, press =  self.get_TP_profile() 
             
-        # plt.figure()
-        # plt.plot(MMW, press)
-        # plt.ylim(press.max(), press.min())
-        # plt.yscale('log')
-        # plt.xlabel('MMW')
-        # plt.ylabel('Pressure [bar]')
-        # plt.show()
-        print(MMW)
-        print(np.mean(MMW))
+            X_dict = self.abundances_dict
+            ## Use the abundance profile to calculate the MMW 
+            mol_mass = self.mol_mass_dict
+            MMW = np.ones((len(press), ))
+            for sp in X_dict.keys():
+                MMW+= X_dict[sp] * mol_mass[sp]
+                
+            # plt.figure()
+            # plt.plot(MMW, press)
+            # plt.ylim(press.max(), press.min())
+            # plt.yscale('log')
+            # plt.xlabel('MMW')
+            # plt.ylabel('Pressure [bar]')
+            # plt.show()
         return MMW
         
     def get_TP_profile(self):
@@ -242,9 +265,10 @@ class Model:
         gen_.T = temp
         ### Get the MMW 
         MMW = self.get_MMW()
-        MMW_mean = np.mean(MMW)
+        print(MMW)
+        # MMW_mean = np.mean(MMW)
         
-        gen_.profile(self.R_planet, self.log_g, self.P_ref, mu = MMW_mean) #Rp (Rj), log(g) cgs, Pref (log(bar))
+        gen_.profile(self.R_planet, self.log_g, self.P_ref, mu = MMW) #Rp (Rj), log(g) cgs, Pref (log(bar))
         
         return gen_
     
@@ -339,15 +363,39 @@ class Model:
         if self.method == "transmission":
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
             spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
-            spec /= ((self.R_star*6.96e8)**2.0)
+            spec /= ((self.R_star*6.957e8)**2.0)
             # spec = 1.-spec
-            # spec = spec
+            spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(self.abundances_dict)
-            spec /= self.planck_lam_star(self.R_star, self.gen.lam, self.T_eff)
+            spec /= self.stellar_flux(self.R_star, self.gen.lam, self.T_eff)
         
         return (10**9) * self.gen.lam, 10**self.log_fs * spec 
+    
+         
+    def stellar_flux(self, Rs, lam, T):
+        """Compute the flux from the star, either as blackbody or from a PHOENIX model.
+
+        :param Rs: Stellar radius, in terms of solar radius.
+        :type Rs: float
+        :param lam: Wavelength range, in micron.
+        :type lam: array
+        :param T: Effective stellar temperature.
+        :type T: float
+        :return: Blackbody flux of the star.
+        :rtype: array
+        """
+        if not self.use_stellar_phoenix:
+            lam_5 = lam*lam*lam*lam*lam
+            Bs = (2.0*sc.h*sc.c*sc.c)/(lam_5*(np.expm1((sc.h*sc.c)/(lam*sc.k*T))))
+            # import pdb
+            # pdb.set_trace()
+            return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
+        else:
+            # phoenix_flux = self.phoenix_model_flux * (sc.c/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
+            phoenix_flux = self.phoenix_model_flux *Rs*Rs*6.957e8*6.957e8
+            return phoenix_flux
     
     def convolve_spectra_to_instrument_resolution(self, model_spec_orig=None):
         """Convolve the given input model spectrum to the instrument resolution. 
@@ -677,7 +725,7 @@ class Model:
             return ccf_trail_matrix_dd
     
     def compute_2D_KpVsys_map(self, theta_fit_dd = None, posterior = 'median', datadetrend_dd = None, order_inds = None, 
-                             Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None):
+                             Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None, fixed_model_spec = None, fixed_model_wav = None):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys.
         
@@ -742,7 +790,11 @@ class Model:
         nKp, nVsys = len(Kp_range), len(Vsys_range)
 
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        model_wav, model_spec_orig = self.get_spectra()
+        if fixed_model_spec is None:
+            model_wav, model_spec_orig = self.get_spectra()
+        else:
+            model_spec, model_wav = fixed_model_spec, fixed_model_wav
+            
         # Convolve the model to instrument resolution
         model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
         
@@ -850,7 +902,7 @@ class Model:
     def compute_2D_KpVsys_map_fast_without_model_reprocess(self, theta_fit_dd = None, posterior = None, 
                                                            datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
-                             species_info = None, vel_window = None):
+                             species_info = None, vel_window = None, fixed_model_spec = None, fixed_model_wav = None ):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
 
@@ -914,7 +966,11 @@ class Model:
         
         
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        model_wav, model_spec_orig = self.get_spectra()
+        if fixed_model_spec is None:
+            model_wav, model_spec_orig = self.get_spectra()
+        else:
+            model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+            
         print('Model calculation done, convolving to instrument resolution ...')
         # Convolve model to instrument resolution
         model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
@@ -934,6 +990,9 @@ class Model:
             data_wavsoln = datadetrend_dd[date]['data_wavsoln']
             phases = datadetrend_dd[date]['phases']
             berv = datadetrend_dd[date]['berv']
+            
+            print('berv', berv)
+            
             nspec = datacube_mean_sub.shape[1]
             
             cc_matrix_all_orders, logL_matrix_all_orders = np.zeros((len(order_inds), nspec, nVsys)), np.zeros((len(order_inds), nspec, nVsys))
@@ -959,6 +1018,7 @@ class Model:
                         #     plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
                         #     plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
                         #     plt.legend()
+                        #     plt.show()
                         #     plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')    
                         # plt.close('all')
                         _, cc_matrix_all_orders[i_ind,it,iv], logL_matrix_all_orders[i_ind,it,iv] = crocut.fast_cross_corr(data=datacube_mean_sub[ind,it,~avoid_mask], 

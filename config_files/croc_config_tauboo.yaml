@@ -112,6 +112,9 @@ model:
   phase_offset: 0.
   Kp: 110.92
 
+  use_stellar_phoenix: False
+  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+  phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 
   TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # From Sid'e email and looking at set_T function, 
