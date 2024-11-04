@@ -1074,7 +1074,9 @@ class Model:
         for dt, date in enumerate(datelist):
             CC_KpVsys, logL_KpVsys = np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
             phases = datadetrend_dd[date]['phases']
+            berv = datadetrend_dd[date]['berv']
             nspec = len(phases)
+            
             for iKp, Kp in enumerate(Kp_range):
                 CC_matrix_shifted, logL_matrix_shifted = np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
                 for it in range(nspec):
