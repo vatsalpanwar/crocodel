@@ -5,7 +5,8 @@ import matplotlib as mpl
 import matplotlib.cm as cm
 from scipy.optimize import curve_fit
 from . import cross_correlation_utils as crocut
-from scipy.interpolate import splev, splrep
+# from scipy.interpolate import splev, splrep
+from scipy import interpolate
 from tqdm import tqdm
 from scipy import stats
 from memory_profiler import profile
@@ -538,7 +539,8 @@ def reprocess_model(datacube=None, data_wavsoln=None, model_fpfs=None, model_wav
 
     # Start the loop for nKp, nVsys. For each pair shift and inject the model in the data
     # And run the PCA with the same eigenvectors
-    model_spl = splrep(model_wavsoln, model_fpfs)
+    # model_spl = splrep(model_wavsoln, model_fpfs)
+    model_spl = interpolate.make_interp_spline(model_wavsoln, model_fpfs)
 
     for iKp in tqdm(range(nKp)):
         for iVsys in range(nVsys):
@@ -548,7 +550,8 @@ def reprocess_model(datacube=None, data_wavsoln=None, model_fpfs=None, model_wav
                 for it in range(nspec):
                     RV = Kp_range[iKp] * np.sin(2. * np.pi * phases[it]) + Vsys_range[iVsys] + berv[it]
                     data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln[idet, :], velocity=-1. * RV)
-                    model_fpfs_shift_exp = splev(data_wavsoln_shift, model_spl)
+                    # model_fpfs_shift_exp = splev(data_wavsoln_shift, model_spl)
+                    model_fpfs_shift_exp = model_spl(data_wavsoln_shift)
                     model_fpfs_shift_cube[it, :] = model_fpfs_shift_exp
 
                 # Inject the model to the data
@@ -639,7 +642,8 @@ def reprocess_model_per_detector(datacube=None, data_wavsoln=None, model_fpfs=No
 
     # Start the loop for nKp, nVsys. For each pair shift and inject the model in the data
     # And run the PCA with the same eigenvectors
-    model_spl = splrep(model_wavsoln, model_fpfs)
+    # model_spl = splrep(model_wavsoln, model_fpfs)
+    model_spl = interpolate.make_interp_spline(model_wavsoln, model_fpfs)
 
     for iKp in tqdm(range(nKp)):
         for iVsys in range(nVsys):
@@ -649,7 +653,8 @@ def reprocess_model_per_detector(datacube=None, data_wavsoln=None, model_fpfs=No
             for it in range(nspec):
                 RV = Kp_range[iKp] * np.sin(2. * np.pi * phases[it]) + Vsys_range[iVsys] + berv[it]
                 data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln[:], velocity=-1. * RV)
-                model_fpfs_shift_exp = splev(data_wavsoln_shift, model_spl)
+                # model_fpfs_shift_exp = splev(data_wavsoln_shift, model_spl)
+                model_fpfs_shift_exp = model_spl(data_wavsoln_shift)
                 model_fpfs_shift_cube[it, :] = model_fpfs_shift_exp
 
             # Inject the model to the data
@@ -757,7 +762,8 @@ def reprocess_model_per_detector_per_KpVsys(datacube=None, data_wavsoln=None, mo
 
     # Start the loop for nKp, nVsys. For each pair shift and inject the model in the data
     # And run the PCA with the same eigenvectors
-    model_spl = splrep(model_wavsoln, model_fpfs)
+    # model_spl = splrep(model_wavsoln, model_fpfs)
+    model_spl = interpolate.make_interp_spline(model_wavsoln, model_fpfs)
 
     # for iKp in tqdm(range(nKp)):
         # for iVsys in range(nVsys):
@@ -767,7 +773,8 @@ def reprocess_model_per_detector_per_KpVsys(datacube=None, data_wavsoln=None, mo
     for it in range(nspec):
         RV = Kp * np.sin(2. * np.pi * phases[it]) + Vsys + berv[it]
         data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln[:], velocity=-1. * RV)
-        model_fpfs_shift_exp = splev(data_wavsoln_shift, model_spl)
+        # model_fpfs_shift_exp = splev(data_wavsoln_shift, model_spl)
+        model_fpfs_shift_exp = model_spl(data_wavsoln_shift)
         model_fpfs_shift_cube[it, :] = model_fpfs_shift_exp
 
     # Inject the model to the data
@@ -943,14 +950,16 @@ def get_telluric_trail_matrix_per_detector(datacube=None, data_wavsoln=None, mod
     # This should have already been done at the stage of removing the PCA linear regression fit from the data.
     datacube_mean_sub_fp = crocut.sub_mask(datacube_detrended_post_pca_mask_fp, zeroMask_fp)
     
-    model_spl = splrep(model_tell_wavsoln, model_tell)
+    # model_spl = splrep(model_tell_wavsoln, model_tell)
+    model_spl = interpolate.make_interp_spline(model_tell_wavsoln, model_tell)
     
     for ivel in range(len(vel_range)):
 
         RV = vel_range[ivel] #+ berv[it]
         data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln, velocity=-1. * RV)
         ## Shift the telluric model by this RV, do it only once since we are not accounting for the BERV here 
-        model_tell_shift = splev(data_wavsoln_shift, model_spl)
+        # model_tell_shift = splev(data_wavsoln_shift, model_spl)
+        model_tell_shift = model_spl(data_wavsoln_shift)
         
         ## Zero out the same columns in model as the data
         model_tell_shift[post_pca_mask] = 0.

@@ -8,17 +8,17 @@ from astropy.io import fits
 import scipy.constants as sc
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
-from scipy.interpolate import splev, splrep
+# from scipy.interpolate import splev, splrep
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-from astropy.convolution import Gaussian1DKernel, convolve
+# from astropy.convolution import Gaussian1DKernel, convolve
 from scipy.signal import fftconvolve
 from . import astro_utils as aut
 from tqdm import tqdm 
 from astropy.io import ascii as ascii_reader
-from astropy import constants as con
-from astropy import units as un
+# from astropy import units as un
+
 
 class Model:
     """Model class to for modeling and performing cross-correlation and log-likelihood computations for 
@@ -27,6 +27,11 @@ class Model:
     store info for all instruments, and use one model class for one instrument.
     """
     def __init__(self, *args, **kwargs):
+        
+        ##### Define some constants 
+        self.vel_c_SI = 299792458.0
+        self.k_B_cgs = 1.380649e-16
+        
         with open(kwargs.pop('config')) as f:
             self.config = yaml.load(f,Loader=yaml.FullLoader)
 
@@ -112,7 +117,8 @@ class Model:
             self.f_global= self.config['model']['f_global'] # Setting this to one let's it be folded into T_eq
             
         elif self.TP_type == 'custom_fixed':
-            self.TP_data = ascii_reader.read(self.config['model']['TP_path'])
+            # self.TP_data = ascii_reader.read(self.config['model']['TP_path'])
+            self.TP_data = np.loadtxt(self.config['model']['TP_path'], skiprows=0, unpack=True)
             
         elif self.TP_type == 'Madhusudhan_Seager':
             self.T_set = self.config['model']['T_set']
@@ -162,8 +168,7 @@ class Model:
         self.use_stellar_phoenix = self.config['model']['use_stellar_phoenix']
         if self.use_stellar_phoenix:
             phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
-            # phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 ## converting to J/m2/s/m
-            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./sc.c) ## converting to J/m2/s
+            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./self.vel_c_SI) ## converting to J/m2/s
 
             start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
             
@@ -177,8 +182,11 @@ class Model:
                                                        model_spec = phoenix_model_flux_inp[start_ind:stop_ind])
 
                         
-            phoenix_spl = splrep(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
-            self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
+            # phoenix_spl = splrep(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
+            # self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
+            ###### Using make_interp_spline instead of splrep, splev for interpolation 
+            phoenix_spl = interpolate.make_interp_spline(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
+            self.phoenix_model_flux = phoenix_spl(self.gen.lam)
             
             #### Broaden the PHOENIX model flux by the rotational velocity 
             # self.phoenix_model_flux, _ = self.rotation(vsini = self.vsini, model_wav = self.gen.lam, model_spec = self.phoenix_model_flux_unbroadened)
@@ -194,7 +202,7 @@ class Model:
     def rotation(self, vsini = None, model_wav = None, model_spec = None):
         assert(vsini >= 1.0)
         # assert(atm.params["rot"]>=1.0)
-        rker = self.get_rot_ker(vsini, model_wav)
+        rker = self.get_rotation_kernel(vsini, model_wav)
         # hlen = int((len(rker)-1)/2)
         spec_conv = fftconvolve(model_spec, rker, mode="same")
         # import pdb
@@ -202,9 +210,9 @@ class Model:
         # return spec_conv[hlen:-hlen], model_wav[hlen:-hlen]
         return spec_conv, model_wav
     
-    def get_rot_ker(self, vsini, model_wav):
+    def get_rotation_kernel(self, vsini, model_wav):
         nx, = model_wav.shape
-        dRV = np.mean(2.0*(model_wav[1:]-model_wav[0:-1])/(model_wav[1:]+model_wav[0:-1]))*(sc.c*1.0e-3) ## Speed of light has been convereted to km/s
+        dRV = np.mean(2.0*(model_wav[1:]-model_wav[0:-1])/(model_wav[1:]+model_wav[0:-1]))*(self.vel_c_SI*1.0e-3) ## Speed of light has been convereted to km/s
         nker = 401
         hnker = (nker-1)//2
         rker = np.zeros(nker)
@@ -214,10 +222,16 @@ class Model:
             if np.abs(x) < 1.0:
                 y = np.sqrt(1-x**2)
                 rker[ii] = y
-        rker /= rker.sum()
+        rker /= rker.sum() # Normalize the kernel
         assert(rker[0]==0.0 and rker[-1]==0.0)
         rker = rker[rker>0]
         return rker
+    
+    def get_gaussian_kernel(self, span = None, sigma = None):
+        # x = np.arange(-int(span/2), int(span/2)+1, stepsize)
+        x = np.linspace(-int(span/2), int(span/2)+1, num = 200)
+        kernel = np.exp(-x**2 / (2 * sigma**2))
+        return kernel / np.sum(kernel)  # Normalize the kernel
     
     @property
     def mol_mass_dict(self):
@@ -278,7 +292,8 @@ class Model:
                                     f_global = self.f_global,
                                     T_irr = self.T_irr)
         elif self.TP_type == 'custom_fixed':
-            tempS, presS = self.TP_data['T[K]'], self.TP_data['P[bar]']
+            # tempS, presS = self.TP_data['T[K]'], self.TP_data['P[bar]']
+            tempS, presS = self.TP_data[0], self.TP_data[1]
             csS = interp1d(presS[::-1], tempS[::-1], fill_value='extrapolate')
             pOut = gen_.P.copy() / 1E5
             tOut = csS(pOut)
@@ -428,8 +443,7 @@ class Model:
             number_densities = self.get_eqchem_abundances()
             #total gas particle number density from the ideal gas law 
             #Needed to convert the number densities output from FastChem to mixing ratios
-            gas_number_density = ( ( press ) *1e6 ) / ( con.k_B.cgs * self.gen.T )
-            # gas_number_density = ( self.gen.P.copy() * un.Pa ) / ( con.k_B * self.gen.T * un.K )
+            gas_number_density = ( ( press ) *1e6 ) / ( self.k_B_cgs * temp )
             
             for sp in self.species:
                 if sp != 'h_minus':
@@ -476,12 +490,12 @@ class Model:
         """
         if not self.use_stellar_phoenix:
             lam_5 = lam*lam*lam*lam*lam
-            Bs = (2.0*sc.h*sc.c*sc.c)/(lam_5*(np.expm1((sc.h*sc.c)/(lam*sc.k*T))))
+            Bs = (2.0*sc.h*self.vel_c_SI*self.vel_c_SI)/(lam_5*(np.expm1((sc.h*self.vel_c_SI)/(lam*sc.k*T))))
             # import pdb
             # pdb.set_trace()
             return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
         else:
-            # phoenix_flux = self.phoenix_model_flux * (sc.c/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
+            # phoenix_flux = self.phoenix_model_flux * (self.vel_c_SI/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
             phoenix_flux = self.phoenix_model_flux *Rs*Rs*6.957e8*6.957e8
             
             return phoenix_flux
@@ -495,13 +509,21 @@ class Model:
         :return: Model spectrum convolved to the instrument resolution.
         :rtype: array_like
         """
+        
         delwav_by_wav = 1/self.config['data'][self.inst]['resolution'] # for the instrument (value is 1/100000 for crires and 1/45000 for igrins) 
         delwav_by_wav_model = 1./self.config['model']['R_power']   ### np.diff(model_wav)/model_wav[1:]
         
         ############ Convolve to instrument resolution 
+        # FWHM = np.mean(delwav_by_wav/delwav_by_wav_model)
+        # sig = FWHM / (2. * np.sqrt(2. * np.log(2.) ) )           
+        # model_spec = convolve(model_spec_orig, Gaussian1DKernel(stddev=sig), boundary='extend')
+        # return model_spec
+        
         FWHM = np.mean(delwav_by_wav/delwav_by_wav_model)
-        sig = FWHM / (2. * np.sqrt(2. * np.log(2.) ) )           
-        model_spec = convolve(model_spec_orig, Gaussian1DKernel(stddev=sig), boundary='extend')
+        sig = FWHM / (2. * np.sqrt(2. * np.log(2.) ) )
+        gauss_kernel = self.get_gaussian_kernel(span = 200, sigma = sig)
+        # model_spec = np.convolve(model_spec_orig)           
+        model_spec = np.convolve(model_spec_orig, gauss_kernel, mode = 'same')
         return model_spec
     
     def get_reprocessed_modelcube(self, model_spec = None, model_wav = None, datacube = None, 
@@ -554,7 +576,8 @@ class Model:
         datamodel_fit = np.empty((nspec, nwav))
         datamodel_detrended = np.empty((nspec, nwav))
         
-        model_spl = splrep(model_wav, model_spec)
+        # model_spl = splrep(model_wav, model_spec)
+        model_spl = interpolate.make_interp_spline(model_wav, model_spec)
         model_spec_shift_cube = np.empty((nspec, nwav))
         
         # Based on given value of Kp, shift the 1D model by the expected total velocity of the planet for each exposure
@@ -562,7 +585,8 @@ class Model:
             RV = self.Kp * np.sin(2. * np.pi * (phases[it] + self.phase_offset)) + self.Vsys + berv[it]
             
             data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln, velocity=-1. * RV)
-            model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
+            # model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
+            model_spec_shift_exp = model_spl(data_wavsoln_shift)
             model_spec_shift_cube[it, :] = model_spec_shift_exp
 
         # Inject the model into the data (should work for both transmission and emission as for transmission the model_spec has -ve sign)
@@ -713,9 +737,9 @@ class Model:
         model_wav, model_spec_orig = self.get_spectra()
         
         # Convolve model to instrument resolution
-        model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-        model_spl = splrep(model_wav, model_spec)
-
+        model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig, model_wav_orig=model_wav)
+        # model_spl = splrep(model_wav, model_spec)
+        model_spl = interpolate.make_interp_spline(model_wav, model_spec)
         # Dictionary to store the CCF trail matrix
         ccf_trail_matrix_dd = {}
         
@@ -742,7 +766,8 @@ class Model:
                         RV = Vsys + datadetrend_dd[date]['berv'][it]
                         data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=datadetrend_dd[date]['data_wavsoln'][ind, :], 
                                                                         velocity=-1. * RV)
-                        model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
+                        # model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
+                        model_spec_shift_exp = model_spl(data_wavsoln_shift)
                         model_spec_shift_exp = model_spec_shift_exp - crocut.fast_mean(model_spec_shift_exp)
                         
                         ccf_trail_matrix_dd[date][ind][it, iVsys], _, _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, :],
@@ -1042,7 +1067,8 @@ class Model:
         print('Model calculation done, convolving to instrument resolution ...')
         # Convolve model to instrument resolution
         model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-        model_spl = splrep(model_wav, model_spec)
+        # model_spl = splrep(model_wav, model_spec)
+        model_spl = interpolate.make_interp_spline(model_wav, model_spec)
              
         datelist = list(datadetrend_dd.keys()) 
         
@@ -1073,7 +1099,8 @@ class Model:
                         data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln[ind,:], velocity=-1. * vel)
                         # Evaluate the model to the data_wavsoln_shifted by -vel,
                         # Effectively Doppler shifting the model by +vel
-                        model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
+                        # model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
+                        model_spec_flux_shift = model_spl(data_wavsoln_shift)
                         # Subtract the mean from the model
                         model_spec_flux_shift = model_spec_flux_shift - crocut.fast_mean(model_spec_flux_shift)
                         # Compute the cross correlation value between the shifted model and the data

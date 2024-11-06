@@ -30,7 +30,7 @@ import copy
 def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,  
                                          T0_inp = None, Porb = None, save = False, 
                                          savedir = None, retres = False, 
-                                         infostring = None, T0_format = None):
+                                         infostring = None, T0_format = None, time_index_mask = None, transit_duration = None):
     
     #### Load the first parsed datacube without NaNs and outliers 
     spec_dd_inp = np.load(spec_dd_path, allow_pickle = True).item()
@@ -40,6 +40,7 @@ def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,
     
     
     times_BJD_TDB, Vbary, phases = np.ones(Nphi), np.ones(Nphi), np.ones(Nphi)
+    
     
     for it in range(Nphi):
         # import pdb
@@ -90,15 +91,38 @@ def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,
     airmass = None
     datestr = Time(times_BJD_TDB, format = 'jd')[0].isot.split("T")[0]
     file_name = 'spdatacube' + infostring + '_' + datestr + '_spdd.npy'
-    spec_dd_sav['spdatacube'] = spec_dd_inp['flux']
-    spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
-    spec_dd_sav['airmass'] = None ## not saving airmasses for now 
-    spec_dd_sav['time'] = times_BJD_TDB
-    spec_dd_sav['bary_RV'] = Vbary
-    spec_dd_sav['phases'] = phases
     
+    if time_index_mask is not None:
+        spec_dd_sav['spdatacube'] = spec_dd_inp['flux'][:,time_index_mask,:]
+        spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
+        spec_dd_sav['airmass'] = None ## not saving airmasses for now 
+        spec_dd_sav['time'] = times_BJD_TDB[time_index_mask]
+        spec_dd_sav['bary_RV'] = Vbary[time_index_mask]
+        spec_dd_sav['phases'] = phases[time_index_mask]
+    else:
+        spec_dd_sav['spdatacube'] = spec_dd_inp['flux']
+        spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
+        spec_dd_sav['airmass'] = None ## not saving airmasses for now 
+        spec_dd_sav['time'] = times_BJD_TDB
+        spec_dd_sav['bary_RV'] = Vbary
+        spec_dd_sav['phases'] = phases
+        
     print('phases: ', phases)
 
+    ## Construct the in-transit mask 
+    
+    mask = np.zeros((len(phases[time_index_mask]), ), dtype = bool)
+    if transit_duration is not None:
+        phase_transit_start, phase_transit_stop = -0.5*transit_duration/(Porb*24.), 0.5*transit_duration/(Porb*24.)
+        print(spec_dd_sav['phases'] >= phase_transit_start)
+        print(spec_dd_sav['phases'] >= phase_transit_stop)
+        mask[np.logical_and(spec_dd_sav['phases'] >= phase_transit_start, spec_dd_sav['phases'] <= phase_transit_stop)] = True
+    else:
+        mask = mask
+    spec_dd_sav['in_transit_mask'] = mask
+    print(phases)
+    print('In transit phases: ', phases[mask])
+        
     if save:
         np.save(savedir + file_name, spec_dd_sav)
     

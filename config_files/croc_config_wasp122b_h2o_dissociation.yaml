@@ -1,6 +1,6 @@
 infostring: 
-  info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
-  # info: 'TEST_PHOENIX'
+  # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
+  info: 'TEST_INTERP'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -169,7 +169,7 @@ model:
   phase_offset: 0.
   Kp: 188.055
 
-  use_stellar_phoenix: True
+  use_stellar_phoenix: False
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 

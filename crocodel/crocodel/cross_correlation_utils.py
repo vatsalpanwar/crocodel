@@ -1,15 +1,10 @@
 import numpy as np
-import astropy.io.fits
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.cm as cm
-from scipy.optimize import curve_fit
 import scipy
-from astropy import units as un
-from astropy import constants as const
-from scipy.interpolate import splev, splrep
+from scipy import interpolate
 from tqdm import tqdm
-import pdb
 from scipy import interpolate
 import scipy.stats
 
@@ -101,7 +96,7 @@ def doppler_shift_wavsoln(wavsoln=None, velocity=None):
     :return: Doppler shifted wavelength solution.
     :rtype: array_like
     """
-    wavsoln_doppler = wavsoln * (1. + (1000. * velocity) / const.c.value)
+    wavsoln_doppler = wavsoln * (1. + (1000. * velocity) / 299792458.0)
     return wavsoln_doppler
 
 
@@ -121,8 +116,9 @@ def resample_spectrum(wavsoln_new=None, wavsoln_orig=None, spec_flux_orig=None):
     :return: Interpolated 1D spectrum for the new wavelength solution.
     """
     # First create the BSpline interpolation for the wavsoln_orig and spec_flux_orig.
-    spl = splrep(wavsoln_orig, spec_flux_orig)
-    spec_flux_new = splev(wavsoln_new, spl)
+    # spl = splrep(wavsoln_orig, spec_flux_orig)
+    spl = interpolate.make_interp_spline(wavsoln_orig, spec_flux_orig)
+    spec_flux_new = spl(wavsoln_new)
 
     return spec_flux_new
 
@@ -255,7 +251,8 @@ def get_cubes_all_exp_fast(datacube=None, data_wavsoln=None, model_spec_flux=Non
     cc_matrix = []
     logL_matrix = []
 
-    model_spl = splrep(model_wavsoln, model_spec_flux)
+    # model_spl = splrep(model_wavsoln, model_spec_flux)
+    model_spl = interpolate.make_interp_spline(model_wavsoln, model_spec_flux)
 
     for tt in tqdm(range(datacube_mean_sub.shape[0])):
         # Empty row to collect the CC values for given exposure at different velocities
@@ -268,7 +265,8 @@ def get_cubes_all_exp_fast(datacube=None, data_wavsoln=None, model_spec_flux=Non
 
             # Evaluate the model to the data_wavsoln_shifted by -vel,
             # Effectively Doppler shifting the model by +vel
-            model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
+            # model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
+            model_spec_flux_shift = model_spl(data_wavsoln_shift)
 
             # Subtract the mean from the model
             model_spec_flux_shift = model_spec_flux_shift - fast_mean(model_spec_flux_shift)
@@ -443,7 +441,8 @@ def get_KpVsys_slow_per_detector_with_model_reprocess(datacube=None, data_wavsol
     if not reprocess:
         # If the model is not reprocessed, you only need to run the interpolation once,
         # else you need to repeat this for every nKp, nVsys.
-        model_spl = splrep(model_wavsoln, model_fpfs)
+        # model_spl = splrep(model_wavsoln, model_fpfs)
+        model_spl = interpolate.make_interp_spline(model_wavsoln, model_fpfs)
 
         # If the model is not reprocessed, the datacube here is already detrended, so subtract
         # the mean from the data first, ignoring the contribution of zero values in the datacube to the mean contribution
@@ -468,7 +467,8 @@ def get_KpVsys_slow_per_detector_with_model_reprocess(datacube=None, data_wavsol
                     # Evaluate the model to the data wavelength solution shifted by -RV.
                     # This shifts the wavelength solution by -RV, but when the model is interpolated onto 
                     # this shifted wavelength solution, the model is effectively shifted by +RV because it is only the wavelength grid that has moved.
-                    model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
+                    # model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
+                    model_spec_flux_shift = model_spl(data_wavsoln_shift)
                     
                     # Subtract the mean of the model from the model
                     model_spec_flux_shift = model_spec_flux_shift - fast_mean(model_spec_flux_shift)
