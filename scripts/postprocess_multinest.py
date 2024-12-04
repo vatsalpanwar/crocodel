@@ -26,27 +26,24 @@ from crocodel.crocodel import data
 from crocodel.crocodel import model
 
 import glob
-
+import distinctipy
 ##############################################################################
 ### Define species you want to compute the individual cross-correlation maps for 
 ##############################################################################
-# SP_INDIV = ['co', 'h2o', 'oh', 'fe', 'tio']
-# SP_COLORS = {'co':'black',
-#              'h2o':'blue',
-#              'oh':'red',
-#              'fe':'green',
-#              'tio':'orange'}
+SP_INDIV = ['co', 'h2o']
+colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
+SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
 
-SP_INDIV = ['logZ_planet', 'C_to_O'] #['co', 'h2o'] # , 'oh', 'fe', 'tio']
-SP_COLORS = {
-            # 'co':'black',
-            #  'h2o':'blue',
-            #  'oh':'red',
-            #  'fe':'green',
-            #  'tio':'orange'
-            'logZ_planet':'green',
-            'C_to_O':'orange'
-             }
+# SP_INDIV = ['logZ_planet', 'C_to_O'] #['co', 'h2o'] # , 'oh', 'fe', 'tio']
+# SP_COLORS = {
+#             # 'co':'black',
+#             #  'h2o':'blue',
+#             #  'oh':'red',
+#             #  'fe':'green',
+#             #  'tio':'orange'
+#             'logZ_planet':'green',
+#             'C_to_O':'orange'
+#              }
 
 ##############################################################################
 ### Read in the path to the directory where the outputs of multinest are saved
@@ -221,10 +218,20 @@ plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inche
 
 np.save(savedir + 'forward_models.npy', model_ind_dd)
 
+#### Plot only total model 
+plt.figure(figsize = (12,5))
+plt.plot(wav_nm[0],spec[0], color = 'xkcd:green', label = 'Total', linewidth = 0.7 ) ## The index 0 is just referring to the posterior type here.
+    
+plt.xlabel('Wavelength [nm]')
+plt.ylabel('Fp/Fs')
+plt.legend()
+plt.savefig(savedir + 'best_fit_model_only_total.pdf', format='pdf', bbox_inches='tight')
+
+
 ##############################################################################
 ### Compute and save a plot of the TP profile 
 ##############################################################################
-
+print('Computing the TP profile ...')
 temp_list, press_list = {}, {} 
 ## First do for the median 
 posterior_type = posterior_type_list[0] # 'median' or 'MAP' , DOING ONLY ONE AT A TIME FOR NOW! 
@@ -326,20 +333,28 @@ elif config_dd['model']['TP_type'] == 'Bezier_4_nodes':
         press_samp.append(press_)
     temp_samp, press_samp = np.array(temp_samp), np.array(press_samp)
 
+### Compute the +- 1 sigma 
+temp_plus_sig, temp_med_sig, temp_min_sig = np.zeros(len(temp_list['median'])), np.zeros(len(temp_list['median'])), np.zeros(len(temp_list['median']))
+for it in range(temp_samp.shape[1]):
+    temp_array = temp_samp[:,it]
+    t_plus, t_med, t_min = corner.quantile(temp_array, [0.84,0.5, 0.16])
+    temp_med_sig[it] = t_med
+    temp_plus_sig[it] = t_plus
+    temp_min_sig[it] = t_min
 tp_dict = {}
 tp_dict['temp_samp'] = temp_samp
 tp_dict['press_samp'] = press_samp
 tp_dict['temp_median'] = temp_list['median']
 tp_dict['press_median'] = press_list['median']
+tp_dict['temp_med_sig'] = temp_med_sig
+tp_dict['temp_plus_sig'] = temp_plus_sig
+tp_dict['temp_min_sig'] = temp_min_sig
 np.save(savedir + 'TP_dict.npy', tp_dict)
-
+print('Done! Plotting them now...')
 ##############################################
 ########### Plot the TP profile ##############
 ##############################################
-# import pdb
-# pdb.set_trace()
 plt.figure()
-
 for i in range(len(chain_inds)):
     plt.plot(temp_samp[i], press_samp[i], color = 'r', alpha = 0.1, linewidth = 0.3)
 # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
@@ -349,8 +364,162 @@ plt.ylim(press_list['median'].max(), press_list['median'].min())
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
-plt.savefig(savedir + 'TP_profile.pdf', format='pdf', dpi=300, bbox_inches='tight')
-# exit()
+plt.savefig(savedir + 'TP_profile_all_samples.pdf', format='pdf', dpi=300, bbox_inches='tight')
+
+### With the +- 1 sigma bounds  
+plt.figure()
+plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['temp_plus_sig'], color = 'r', alpha = 0.2)
+# plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
+plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
+
+plt.ylim(press_list['median'].max(), press_list['median'].min())
+plt.yscale('log')
+plt.xlabel('Temperature [K]')
+plt.ylabel('Pressure [bar]')
+plt.savefig(savedir + 'TP_profile_sigma_bounds.pdf', format='pdf', dpi=300, bbox_inches='tight')
+print('Done!')
+##############################################################################
+### Compute, plot, and save the abundance dictionary 
+##############################################################################
+print('Computing abundances...')
+chain_inds = np.random.randint(0, len(chain_dd['Kp'])-1, 3000)
+abund_dict_test = planet_model_dict_global[INST_GLOBAL].abundances_dict
+abund_dict_save = {}
+abund_dict_save['press_median'] = tp_dict['press_median']
+### Compile the poeterior sampled profiles first  
+for sp in abund_dict_test.keys():    
+    abund_dict_save[sp] = {}
+    abund_dict_save[sp]['samp'] = np.zeros( (len(chain_inds), len(tp_dict['temp_median'])) )
+    abund_dict_save[sp]['abund_med_sig'], abund_dict_save[sp]['abund_plus_sig'], abund_dict_save[sp]['abund_min_sig'] = np.zeros(len(tp_dict['temp_median'])), np.zeros(len(tp_dict['temp_median'])), np.zeros(len(tp_dict['temp_median']))
+
+for indind, ind in enumerate(chain_inds):
+    for pname in fit_param_dict.keys():
+        if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+            setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**chain_dd[pname][ind])
+        else:
+            setattr(planet_model_dict_global[INST_GLOBAL], pname, chain_dd[pname][ind])
+
+    abund_dict = planet_model_dict_global[INST_GLOBAL].abundances_dict
+    for sp in abund_dict.keys():
+        abund_dict_save[sp]['samp'][indind,:] = abund_dict[sp]
+
+### Compute the +-1 sigma bounds
+for sp in abund_dict.keys():
+    for it in range(abund_dict_save[sp]['samp'].shape[1]):
+        abund_array = abund_dict_save[sp]['samp'][:,it]
+        a_plus, a_med, a_min = corner.quantile(abund_array, [0.84,0.5, 0.16])
+        abund_dict_save[sp]['abund_med_sig'][it] = a_med
+        abund_dict_save[sp]['abund_plus_sig'][it] = a_plus
+        abund_dict_save[sp]['abund_min_sig'][it] = a_min
+np.save(savedir + 'abund_dict.npy', abund_dict_save)
+print('Done! Plotting them now...')
+### Plot the abundances of each molecule 
+### Plot the abundances for each molecule 
+plt.figure()
+for i_sp, sp in enumerate(abund_dict_save.keys()):
+    # if sp not in ['h2', 'he', 'press_median']:
+    if sp in SP_INDIV:
+        plt.plot( abund_dict_save[sp]['abund_med_sig'], abund_dict_save['press_median'], color = SP_COLORS[sp], label = sp )
+        plt.fill_betweenx(abund_dict_save['press_median'], abund_dict_save[sp]['abund_min_sig'], abund_dict_save[sp]['abund_plus_sig'], color = SP_COLORS[sp], alpha = 0.2)
+        
+plt.ylim(abund_dict_save['press_median'].max(), abund_dict_save['press_median'].min())
+plt.yscale('log')
+plt.xscale('log')
+plt.xlabel('VMR')
+plt.ylabel('Pressure [bar]')
+plt.legend(fontsize = 8)
+plt.savefig(savedir + 'abundances.pdf', format='pdf', dpi=300, bbox_inches='tight')
+print('Done!')
+
+##############################################################################
+### Compute the contribution functions and then overplot them with the TP
+##############################################################################
+contribution_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
+
+####### Plot the contribution function ################################################
+
+##### First plot the 2D map of the optical depth 
+plt.figure(figsize = (16,10))
+plt.pcolormesh(wav_nm[0], P_array, np.log10(tau) )
+plt.xlabel('Wavelength [nm]')
+plt.ylabel('Pressure [bar]')
+plt.yscale('log')
+plt.ylim(max(P_array),min(P_array))
+# plt.xlim(xmin = 2400., xmax = 2410.)
+plt.colorbar(label = 'log$_{10}$tau')
+plt.savefig(savedir + 'tau_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
+
+##### Plot the 2D map of the contribution function (without blackbody)
+# import pdb
+# pdb.set_trace()
+plt.figure(figsize = (16,10))
+plt.pcolormesh(wav_nm[0], P_array[1:], contribution_func.T )
+plt.xlabel('Wavelength [nm]')
+plt.ylabel('Pressure [bar]')
+plt.yscale('log')
+plt.ylim(max(P_array[1:]),min(P_array[1:]))
+# plt.xlim(xmin = 2400., xmax = 2410.)
+plt.colorbar(label = 'CF')
+plt.savefig(savedir + 'cf_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
+
+# Convert to HTML
+# html_string = mpld3.fig_to_html(plt.gcf())
+
+# # Save to a file
+# with open(savedir + 'tau_map.html', 'w') as f:
+#     f.write(html_string)
+
+
+##### Plot the histogram of the pressure values 
+plt.figure(figsize = (12,10))
+plt.hist( P_tau, histtype = 'step', bins = 50, density = True, alpha = 1., color = 'k' )
+plt.xscale('log')
+plt.xlabel('Pressure for tau = 2/3 [bar]')
+plt.ylabel('Probability Density')
+plt.savefig(savedir + 'contribution_function_hist.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
+
+##### Plot the tau = 2./3. pressure points across the wavelength range 
+plt.figure(figsize = (12,10))
+plt.plot( wav_nm[0], P_tau, color = 'k' )
+plt.yscale('log')
+plt.ylim(max(tp_dict['press_median']),min(tp_dict['press_median']))
+plt.xlabel('Wavelength [nm]')
+plt.ylabel('Pressure for tau = 2/3 [bar]')
+plt.savefig(savedir + 'P_tau_2by3_surface.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
+
+####### Plot the TP profile ######### 
+## with the histogram of P for tau = 2/3 across all the surfaces 
+plt.figure()
+plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['temp_plus_sig'], color = 'r', alpha = 0.2)
+# plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
+plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
+
+plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
+plt.yscale('log')
+plt.xlabel('Temperature [K]')
+plt.ylabel('Pressure [bar]')
+ax2 = plt.gca().twiny()
+ax2.hist( P_tau, histtype = 'step', bins = 100, density = True, alpha = 1., color = 'k' , orientation = 'horizontal')
+ax2.set_xlabel('Probability Density')
+plt.savefig(savedir + 'TP_profile_contribution_function_hist.pdf', format='pdf', dpi=300, bbox_inches='tight')
+
+## 2/3 pressures
+plt.figure()
+plt.fill_betweenx(tp_dict['press_median'],tp_dict['temp_min_sig'], tp_dict['temp_plus_sig'], color = 'r', alpha = 0.2)
+# plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
+plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
+plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
+plt.yscale('log')
+plt.xlabel('Temperature [K]')
+plt.ylabel('Pressure [bar]')
+ax2 = plt.gca().twiny()
+ax2.plot(wav_nm[0], P_tau, color = 'k', alpha = 0.6)
+ax2.set_xlabel('Wavelength [nm]')
+plt.savefig(savedir + 'TP_profile_tau_2by3_pressures.pdf', format='pdf', dpi=300, bbox_inches='tight')
+
+exit()
+
+
 ##############################################################################
 ### Compute the 2D KpVsys maps and also plot them for all species 
 ##############################################################################

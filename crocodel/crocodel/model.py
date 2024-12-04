@@ -500,6 +500,13 @@ class Model:
             
             return phoenix_flux
     
+    
+    def get_contribution_function(self):
+        X_dict = self.abundances_dict
+        contribution_func, tau, P_array, P_tau = self.gen.contribution_function(X_dict, tau_val = 2./3.)
+
+        return contribution_func, tau, P_array, P_tau
+    
     def convolve_spectra_to_instrument_resolution(self, model_spec_orig=None):
         """Convolve the given input model spectrum to the instrument resolution. 
         Assumes that the instrument resolution is constant with wavelength.
@@ -826,7 +833,7 @@ class Model:
             return ccf_trail_matrix_dd
     
     def compute_2D_KpVsys_map(self, theta_fit_dd = None, posterior = 'median', datadetrend_dd = None, order_inds = None, 
-                             Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None):
+                             Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None, fixed_model_spec = None, fixed_model_wav = None):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys.
         
@@ -891,7 +898,10 @@ class Model:
         nKp, nVsys = len(Kp_range), len(Vsys_range)
 
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        model_wav, model_spec_orig = self.get_spectra()
+        if fixed_model_spec is None:
+            model_wav, model_spec_orig = self.get_spectra()
+        else:
+            model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
         # Convolve the model to instrument resolution
         model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
         
@@ -999,7 +1009,7 @@ class Model:
     def compute_2D_KpVsys_map_fast_without_model_reprocess(self, theta_fit_dd = None, posterior = None, 
                                                            datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
-                             species_info = None, vel_window = None):
+                             species_info = None, vel_window = None, fixed_model_spec = None, fixed_model_wav = None):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
 
@@ -1063,7 +1073,11 @@ class Model:
         
         
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        model_wav, model_spec_orig = self.get_spectra()
+        if fixed_model_spec is None:
+            model_wav, model_spec_orig = self.get_spectra()
+        else:
+            model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+            
         print('Model calculation done, convolving to instrument resolution ...')
         # Convolve model to instrument resolution
         model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)

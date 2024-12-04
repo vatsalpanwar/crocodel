@@ -7,6 +7,8 @@ import yaml
 from shutil import copyfile
 import datetime
 import os
+import astropy.io.ascii as asc
+import distinctipy
 # os.environ["OMP_NUM_THREADS"] = "1"
 
 # Matplotlib rcparams
@@ -31,6 +33,8 @@ from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
 INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
+
+  
 ##########################################################################################################################
 ##########################################################################################################################
 
@@ -46,6 +50,7 @@ parser.add_argument('-mmet','--map_calc_method', help = "Method used to calculat
 args = vars(parser.parse_args())
 config_file_path = args['config_file_path']
 KpVsys_method = args['map_calc_method']
+
 
 if args['date_tag'] is None:
     now = datetime.datetime.now()
@@ -77,15 +82,21 @@ copyfile(config_file_path, savedir + 'croc_config.yaml')
 ############################################# Initialize the Data and Model classes: #######################################################################################
 ############################################################################################################################################################################
 ############################################################################################################################################################################
+####### Do you have a fixed model computed already? If this is set true, all the model params in the config file will be ignored and only this model will be used.
+fix_model_info = config_dd['model']['fix_model_info']
+fix_model = fix_model_info['fix_model'] ## True or False 
+
+
 planet_data = data.Data(config = config_file_path)
 planet_model_dict = {}
 for inst in config_dd['data'].keys():
     planet_model_dict[inst] = model.Model(config = config_file_path, inst = inst )
 
-free_param_dict = config_dd['model']["free_params"]
-fix_param_dict = {}
-for pname in free_param_dict.keys():
-    fix_param_dict[pname] = free_param_dict[pname]["fix_test"]
+if not fix_model:
+    free_param_dict = config_dd['model']["free_params"]
+    fix_param_dict = {}
+    for pname in free_param_dict.keys():
+        fix_param_dict[pname] = free_param_dict[pname]["fix_test"]
 
 ############################################################################################################################################################################
 ############################################################################################################################################################################
@@ -188,9 +199,7 @@ planet_model_dict_global = planet_model_dict
 Vsys_range_bound, Vsys_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_step']
 Vsys_range_bound_trail = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range_trail']
 vel_window = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['vel_window']
-
 Kp_range_bound, Kp_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Kp_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Kp_step']
-
 Vsys_range = np.arange(Vsys_range_bound[0], Vsys_range_bound[1], Vsys_step)
 Vsys_range_trail = np.arange(Vsys_range_bound_trail[0], Vsys_range_bound_trail[1], Vsys_step)
 Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
@@ -201,7 +210,6 @@ Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
 ########### Before starting to sample, compute CCF trail matrix with the model computed using initial model parameters.
 ######################################################################################
 ###################################################################################### 
-
 
 # if len(glob.glob(savedir + 'ccf*')) == 0: 
 #     print('Computing the trail matrix')     
@@ -223,15 +231,35 @@ Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
 ### Compute and save the forward model based on the initial params of the model 
 ##############################################################################
 ## All species 
-SP_INDIV = [x for x in config_dd_global['model']['abundances'].keys() if x != 'he']
-color_list = aut.generate_distinct_colors(len(SP_INDIV))
-SP_COLORS = {SP_INDIV[i]:color_list[i] for i in range(len(SP_INDIV))} ## this is where it was stuck 
+
 
 ##############################################################################################
 ## Computing the total model and models for individual species ###################################################
 ##############################################################################################
-wav_nm, spec = planet_model_dict_global[INST_GLOBAL].get_spectra()
-abund_dict = planet_model_dict_global[INST_GLOBAL].abundances_dict
+if fix_model:
+    fix_model_path = fix_model_info['fix_model_path']
+    model_dat = np.load(fix_model_path + 'spec_dict.npy', allow_pickle = True).item()
+    if config_dd_global['data'][INST_GLOBAL]['method'] == 'emission':
+        wav_nm, spec = model_dat['lam_nm'], model_dat['spec']
+    elif config_dd_global['data'][INST_GLOBAL]['method'] == 'transmission':
+        wav_nm, spec = model_dat['lam_nm'], 1.-model_dat['spec']
+        
+    #### For now just copy the abund_dict and TP_dict files; in future can just use them to comput ethe model here instead of precomputing elsewhere.
+    copyfile(fix_model_info['fix_model_path'] + 'TP_dict.npy', savedir + 'TP_dict.npy')
+    copyfile(fix_model_info['fix_model_path'] + 'abund_dict.npy', savedir + 'abund_dict.npy')
+    TP_dict = np.load(fix_model_info['fix_model_path'] + 'TP_dict.npy', allow_pickle = True).item()
+    abund_dict = np.load(fix_model_info['fix_model_path'] + 'abund_dict.npy', allow_pickle = True).item()
+    
+    SP_INDIV = [x for x in abund_dict.keys() if x != 'press_median']
+    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
+    SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
+        
+else:
+    wav_nm, spec = planet_model_dict_global[INST_GLOBAL].get_spectra()
+    abund_dict = planet_model_dict_global[INST_GLOBAL].abundances_dict
+    SP_INDIV = [x for x in config_dd_global['model']['abundances'].keys() if x != 'he']
+    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
+    SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
 
 ############# For individual species 
 # model_ind_dd = {}
@@ -262,7 +290,6 @@ plt.plot(wav_nm, spec, color = 'xkcd:green', linewidth = 0.7 )
 # for ii, spnm in enumerate(SP_INDIV):
 #     plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
 # plt.legend()
-
 plt.xlabel('Wavelength [nm]')
 plt.ylabel('Fp/Fs')
 plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
@@ -284,40 +311,82 @@ plt.close('all')
 
 
 ##########################################################################################
-################### Compute and plot the TP profile ######################################
+################### Compute and plot the TP profile and abundance profiles  ######################################
 ##########################################################################################
-temp, press = planet_model_dict_global[INST_GLOBAL].get_TP_profile()
-plt.figure()
-plt.plot(temp,press, color = 'k' )
-plt.ylim(press.max(), press.min())
-plt.yscale('log')
-plt.xlabel('Temperature [K]')
-plt.ylabel('Pressure [bar]')
-plt.savefig(savedir + 'TP_profile.png', format='png', dpi=300, bbox_inches='tight')
+if fix_model:
+    plt.figure()
+    plt.plot(TP_dict['temp_median'], TP_dict['press_median'], color = 'k' )
+    plt.ylim( max(TP_dict['press_median']), min(TP_dict['press_median']) )
+    plt.yscale('log')
+    plt.xlabel('Temperature [K]')
+    plt.ylabel('Pressure [bar]')
+    plt.savefig(savedir + 'TP_profile.png', format='png', dpi=300, bbox_inches='tight')
+    
+    plt.figure()
+    for i_sp, sp in enumerate(abund_dict.keys()):
+        # if sp not in ['h2', 'he', 'press_median']:
+        if sp in SP_INDIV:
+            plt.plot( abund_dict[sp]['abund_med_sig'], abund_dict['press_median'], color = SP_COLORS[sp], label = sp )
+            # plt.fill_betweenx(abund_dict['press_median'], abund_dict[sp]['abund_min_sig'], abund_dict[sp]['abund_plus_sig'], color = SP_COLORS[sp], alpha = 0.2)
+        
+    plt.ylim(abund_dict['press_median'].max(), abund_dict['press_median'].min())
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.xlabel('VMR')
+    plt.ylabel('Pressure [bar]')
+    plt.legend(fontsize = 8)
+    plt.savefig(savedir + 'abundances.pdf', format='pdf', dpi=300, bbox_inches='tight')
+
+else:
+    temp, press = planet_model_dict_global[INST_GLOBAL].get_TP_profile()
+    plt.figure()
+    plt.plot(temp,press, color = 'k' )
+    plt.ylim(press.max(), press.min())
+    plt.yscale('log')
+    plt.xlabel('Temperature [K]')
+    plt.ylabel('Pressure [bar]')
+    plt.savefig(savedir + 'TP_profile.png', format='png', dpi=300, bbox_inches='tight')
+    
 ##############################################################################
 ### Compute the 2D KpVsys maps and also plot them for all species included
 ##############################################################################
 ###### Make sure everything is set to initial params 
-print(fix_param_dict.keys())
-for pname in fix_param_dict.keys():
-    if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
-        print(pname, fix_param_dict[pname])
-        setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
-    else:
-        setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
+if not fix_model:
+    print(fix_param_dict.keys())
+    for pname in fix_param_dict.keys():
+        if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+            print(pname, fix_param_dict[pname])
+            setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
+        else:
+            setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
 
-print('Computing KpVsys maps...')
-if KpVsys_method == 'slow':
-    KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
-                                                                                datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir)
+    print('Computing KpVsys maps...')
+    if KpVsys_method == 'slow':
+        KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
+                                                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir)
 
-    planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
-elif KpVsys_method == 'fast':
-    print('Order inds used are: ', order_inds)
-    planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
-                                                           datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+        planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
+    elif KpVsys_method == 'fast':
+        print('Order inds used are: ', order_inds)
+        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                            datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+
+else:
+    print('Computing KpVsys maps...')
+    if KpVsys_method == 'slow':
+        KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
+                                                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir, fixed_model_wav = wav_nm, fixed_model_spec = spec)
+
+        planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
+    
+    elif KpVsys_method == 'fast':
+        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                            datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, fixed_model_wav = wav_nm, fixed_model_spec = spec)
+    
        
        
 ##############################################################################

@@ -1,7 +1,6 @@
 infostring: 
   # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
-  # info: 'TEST_INTERP'
-  info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
+  info: 'TEST_INTERP'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -226,7 +225,7 @@ model:
   ####### Mean molecular weight : do you want to fix it? 
   fix_MMW: True
   MMW_value: 2.35
-
+  
   chemistry: 'free_chem_with_dissoc' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
   sp_dissoc_list: ['h2o']
   ## list of molecules for which you want to fit a dissociation profile ; the alpha, beta, gamma variable names for 

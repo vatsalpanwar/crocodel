@@ -1,7 +1,5 @@
 infostring: 
-  # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
-  # info: 'TEST_INTERP'
-  info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
+  info: 'IGRINS_WASP-122b_FAST_FIX_MODEL_POKAZATEL_Krishna_RCTE_logZ_-2_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -132,11 +130,11 @@ data: # Each high level key under data should be the name of the instrument.
 
       }
     cross_correlation_params:
-      Vsys_range: [10., 60.]
-      Kp_range: [160., 260.]
+      Vsys_range: [0., 80.]
+      Kp_range: [140., 240.]
 
-      Vsys_range_trail: [-250., 250.]
-      vel_window: [200,-200]
+      Vsys_range_trail: [-350.,350.]
+      vel_window: [350,-270]
       Vsys_step: 1.
       Kp_step: 1.
 
@@ -173,6 +171,22 @@ model:
   use_stellar_phoenix: False
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+
+  ####### ####### ####### ####### ####### ####### ####### ####### ####### ####### 
+  ####### Do you have a fixed pre-calculated model that you want to use?  #######
+  ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
+  fix_model_info:
+   fix_model: True
+  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_03-12-2024T13-25-57/'
+   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_-2_03-12-2024T13-20-43/'
+  ### the above directory should contain abund_dict.npy, spec_dict.npy, and TP_dict.npy
+  ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
+  ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
+
+  ####### If fix_model key above is True, then all below will be ignored and not used.
+
+  ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
+  ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
 
   # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # # From Sid'e email and looking at set_T function, 
@@ -226,7 +240,7 @@ model:
   ####### Mean molecular weight : do you want to fix it? 
   fix_MMW: True
   MMW_value: 2.35
-
+  
   chemistry: 'free_chem_with_dissoc' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
   sp_dissoc_list: ['h2o']
   ## list of molecules for which you want to fit a dissociation profile ; the alpha, beta, gamma variable names for 
@@ -266,153 +280,153 @@ model:
   # The order of bound is [min, max, start value or mean value for Gaussian priors, sigma] 
   # Even when you are not using a Gaussian prior, keep some placeholder values in the bound.
 
-  free_params:
-    log_fs:
-      fix_test: 0.03
-      prior: Uniform # 
-      bound: [-4., 1.,0., 0.1]
+  free_params: None
+  #   log_fs:
+  #     fix_test: 0.03
+  #     prior: Uniform # 
+  #     bound: [-4., 1.,0., 0.1]
 
-    Kp:
-      fix_test: 195
-      prior: Uniform
-      bound: [160, 250., 188.055,1.]
-    Vsys:
-      fix_test: 30.4
-      prior: Uniform
-      bound: [5., 50., 34., 1.] ###measured value is ~ 34 km/s
-    ### ### ### ### ### ### ### ###
-    ### For a Linear gradient profile
-    ### ### ### ### ### ### ### ### 
-    # P1:
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-1.0,7.0, 5., 1.] # In log Pa. remember 10^5 Pa  = 1 bar 
-    # T1:
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [300., 3400., 1900., 10.] 
-    # P2:
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-1.0,7.0,3., 1.] # In log Pa; remember 10^5 Pa  = 1 bar 
-    # T2:
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [300., 3400., 1500., 10.] 
+  #   Kp:
+  #     fix_test: 195
+  #     prior: Uniform
+  #     bound: [160, 250., 188.055,1.]
+  #   Vsys:
+  #     fix_test: 30.4
+  #     prior: Uniform
+  #     bound: [5., 50., 34., 1.] ###measured value is ~ 34 km/s
+  #   ### ### ### ### ### ### ### ###
+  #   ### For a Linear gradient profile
+  #   ### ### ### ### ### ### ### ### 
+  #   # P1:
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-1.0,7.0, 5., 1.] # In log Pa. remember 10^5 Pa  = 1 bar 
+  #   # T1:
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [300., 3400., 1900., 10.] 
+  #   # P2:
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-1.0,7.0,3., 1.] # In log Pa; remember 10^5 Pa  = 1 bar 
+  #   # T2:
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [300., 3400., 1500., 10.] 
 
-    ### ### ### ### ### ### ### ### ###
-    ### For Guillot profile 
-     ### ### ### ### ### ### ### ### ###
-    # T_int: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [100., 300., 150, 10.] 
-    # T_irr: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [1200., 3500., 1650, 10.] 
-    # log_gamma: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-10.,1., 0., 1.]
-    # log_kappa_IR: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-10., 0., 0., 1.]
+  #   ### ### ### ### ### ### ### ### ###
+  #   ### For Guillot profile 
+  #    ### ### ### ### ### ### ### ### ###
+  #   # T_int: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [100., 300., 150, 10.] 
+  #   # T_irr: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [1200., 3500., 1650, 10.] 
+  #   # log_gamma: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-10.,1., 0., 1.]
+  #   # log_kappa_IR: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-10., 0., 0., 1.]
 
-    ### ### ### ### ### ### ### ### ###
-    ### For Madhusudhan_Seager TP profile 
-    ### ### ### ### ### ### ### ### ###
-    # T_set: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [1500., 3000., 150, 10.] 
-    # alpha1: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [0.02, 1., 0.02, 0.001] 
-    # alpha2: 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [0.02, 1., 0.02, 0.001] 
-    # log_P1: ## in log bars 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-6., 2., 0., 1.]
-    # log_P2: ## in log bars 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-6., 2., 0., 1.]
-    # log_P3: ## in log bars 
-    #   fix_test: None
-    #   prior: Uniform
-    #   bound: [-6., 2., 0., 1.]
+  #   ### ### ### ### ### ### ### ### ###
+  #   ### For Madhusudhan_Seager TP profile 
+  #   ### ### ### ### ### ### ### ### ###
+  #   # T_set: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [1500., 3000., 150, 10.] 
+  #   # alpha1: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [0.02, 1., 0.02, 0.001] 
+  #   # alpha2: 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [0.02, 1., 0.02, 0.001] 
+  #   # log_P1: ## in log bars 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-6., 2., 0., 1.]
+  #   # log_P2: ## in log bars 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-6., 2., 0., 1.]
+  #   # log_P3: ## in log bars 
+  #   #   fix_test: None
+  #   #   prior: Uniform
+  #   #   bound: [-6., 2., 0., 1.]
 
-    ### ### ### ### ### ### ### ### ###
-    ### For TP_Bezier_4_nodes
-    ### ### ### ### ### ### ### ### ###
-    T0:
-      fix_test: 3475.37
-      prior: Uniform
-      bound: [400., 3500., 150, 10.] 
-    T1:
-      fix_test: 1706.35 
-      prior: Uniform
-      bound: [400., 3500., 0.02, 0.001] 
-    log_P1:
-      fix_test: -3.23 
-      prior: Uniform
-      bound: [-6., 2., 0.02, 0.001] 
-    T2:
-      fix_test: 2888.97
-      prior: Uniform
-      bound: [400., 3500., 0., 1.]
-    log_P2:
-      fix_test: 1.99
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
-    T3:
-      fix_test: 3175.55
-      prior: Uniform
-      bound: [400., 3500., 0., 1.]
+  #   ### ### ### ### ### ### ### ### ###
+  #   ### For TP_Bezier_4_nodes
+  #   ### ### ### ### ### ### ### ### ###
+  #   T0:
+  #     fix_test: 3475.37
+  #     prior: Uniform
+  #     bound: [400., 3500., 150, 10.] 
+  #   T1:
+  #     fix_test: 1706.35 
+  #     prior: Uniform
+  #     bound: [400., 3500., 0.02, 0.001] 
+  #   log_P1:
+  #     fix_test: -3.23 
+  #     prior: Uniform
+  #     bound: [-6., 2., 0.02, 0.001] 
+  #   T2:
+  #     fix_test: 2888.97
+  #     prior: Uniform
+  #     bound: [400., 3500., 0., 1.]
+  #   log_P2:
+  #     fix_test: 1.99
+  #     prior: Uniform
+  #     bound: [-6., 2., 0., 1.]
+  #   T3:
+  #     fix_test: 3175.55
+  #     prior: Uniform
+  #     bound: [400., 3500., 0., 1.]
     
-    ### ### ### ### ### ### ### ### ###
-    ### Abundances 
-    ### ### ### ### ### ### ### ### ###
+  #   ### ### ### ### ### ### ### ### ###
+  #   ### Abundances 
+  #   ### ### ### ### ### ### ### ### ###
     
-    co:
-      fix_test: -5.04
-      prior: Uniform
-      bound: [-15., -1., -3., 1.] # log10 of the VMRs # change to -10 to -1
+  #   co:
+  #     fix_test: -5.04
+  #     prior: Uniform
+  #     bound: [-15., -1., -3., 1.] # log10 of the VMRs # change to -10 to -1
 
-    h2o:
-      fix_test: -5.2 
-      prior: Uniform
-      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+  #   h2o:
+  #     fix_test: -5.2 
+  #     prior: Uniform
+  #     bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
     
-    oh:
-      fix_test: -10.2
-      prior: Uniform
-      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+  #   oh:
+  #     fix_test: -10.2
+  #     prior: Uniform
+  #     bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
     
-    h_minus:
-      fix_test: -14.6
-      prior: Uniform
-      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+  #   h_minus:
+  #     fix_test: -14.6
+  #     prior: Uniform
+  #     bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
 
-    # alpha_h2o: 
-    #   fix_test: 2.
-    #   prior: Uniform
-    #   bound: [0.1,4., 0., 0.]
+  #   # alpha_h2o: 
+  #   #   fix_test: 2.
+  #   #   prior: Uniform
+  #   #   bound: [0.1,4., 0., 0.]
     
-    # log10_beta_h2o:
-    #   fix_test: 4.68
-    #   prior: Uniform
-    #   bound: [2.,6.,0.,0.]
+  #   # log10_beta_h2o:
+  #   #   fix_test: 4.68
+  #   #   prior: Uniform
+  #   #   bound: [2.,6.,0.,0.]
 
-    # gamma_h2o:      
-    #   fix_test: 15.9
-    #   prior: Uniform
-    #   bound: [5., 20.,0.,0.]
+  #   # gamma_h2o:      
+  #   #   fix_test: 15.9
+  #   #   prior: Uniform
+  #   #   bound: [5., 20.,0.,0.]
       
 
