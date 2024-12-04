@@ -124,7 +124,7 @@ def get_data_BJD_phase_Vbary_igrins(datadir = None,  T0 = None, Porb = None, sav
     
     if save:
         np.save(savedir + file_name, spdatacube_dd)
-    
+        return savedir + file_name
     if retres:
         return data_RAW_masked, wlgrid_masked, times_BJD_TDB, Vbary, phases, airmass
 
@@ -143,7 +143,7 @@ def fitting_func_data_wrap(cs_data):
         return data_int
     return fitting_func_data
 
-def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, savedir = None):
+def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, savedir = None, normalize_data = True):
     
     ##### Load the observed data 
     spdd = np.load(spdd_path, allow_pickle = True).item()
@@ -182,22 +182,29 @@ def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, save
         data_to_fit = data[order,idxRef,:].flatten() # Reference spectrum 
         for phi in range(Nphi):  # phase/time/frame loop
             data_to_correct=data[order,phi,:]    #current spectrum to re-align (raw spectrum)
-            # import scipy
-            # print(scipy.__version__)
-            cs_data_ = splrep(wl0,data_to_correct/data_to_correct.max(),s=0.0) #splining
+            
+            data_to_correct_max = data_to_correct.max() ### Could check taking the median here (of all or top 5 % of the data )
+            
+            cs_data_ = splrep(wl0,data_to_correct/data_to_correct_max,s=0.0) #splining
             # extra_kwargs = {'cs_data':cs_data_}
-            popt, pconv=curve_fit(fitting_func_data_wrap(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
+            popt, pconv =curve_fit(fitting_func_data_wrap(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
                                   p0=np.array([0.0,1.0])) #curve fitting
 
-            data_refit=fitting_func_data_wrap(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            data_refit = fitting_func_data_wrap(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            
+            if normalize_data:
+                data_refit = data_refit
+            else:
+                data_refit = data_to_correct_max*data_refit ### Multiplying back by the normalizing factor to retain the throughput variations 
+            
             data_corrected[order,phi,]=data_refit #packing into another fun "Norders x Nphi x Nwavelengths" array/cube
-        ''' Diagnostic written during 2024-03-04 meeting '''
-        plt.figure(figsize=(20,3))
-        plt.plot(wl0,np.mean(data_corrected[order,],axis=0),lw=0.7, label = 'data corrected')
-        plt.plot(wl0,interpolate.splev(wl0,cs_tell),lw=0.7, label = 'telluric')
-        plt.title('Order {:02}'.format(order))
-        plt.legend()
-        plt.show()
+        # ''' Diagnostic written during 2024-03-04 meeting '''
+        # plt.figure(figsize=(20,3))
+        # plt.plot(wl0,np.mean(data_corrected[order,],axis=0),lw=0.7, label = 'data corrected')
+        # plt.plot(wl0,interpolate.splev(wl0,cs_tell),lw=0.7, label = 'telluric')
+        # plt.title('Order {:02}'.format(order))
+        # plt.legend()
+        # plt.show()
 
     spdd_wave_recalib['wavsoln'] = wl_data
     spdd_wave_recalib['spdatacube'] = data_corrected

@@ -1,0 +1,23 @@
+infostring: 'IGRINS_2023-12-04_normalize_data-YES_'
+
+normalize_data: True
+
+data_file_path: '/Users/vatsalpanwar/source/work/astro/projects/Warwick/wasp122b/data/igrins/wasp122_IGRINS/pipeline_reduced/'
+
+instrument_name: 'igrins'
+
+planet_name: 'WASP-122b'
+
+save_directory: '/Users/vatsalpanwar/source/work/astro/projects/Warwick/wasp122b/data/igrins/spdatacubes/'
+
+T_mid_transit: 2460281.98754
+Porb: 1.71005328
+
+
+# T_mid = 2458654.016813 ## BJD_TDB from https://ui.adsabs.harvard.edu/abs/2023ApJS..265....4K/abstract
+# T_mid_err = 7e-05 ## days https://ui.adsabs.harvard.edu/abs/2023ApJS..265....4K/abstract          	
+# Porb = 1.71005328 ## Days https://ui.adsabs.harvard.edu/abs/2023ApJS..265....4K/abstract     	
+# Porb_err = 1.4e-07 ## Days https://ui.adsabs.harvard.edu/abs/2023ApJS..265....4K/abstract
+# T_dur = 2.188 ## in hours https://ui.adsabs.harvard.edu/abs/2016PASP..128f4401T/abstract
+# ###### 
+# T_mid_pred = 2460281.98754 ### From NASA exoplanet archive , this is 12/03/2023 11:42 (MM/DD/YYYY)

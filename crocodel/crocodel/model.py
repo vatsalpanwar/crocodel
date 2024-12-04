@@ -364,8 +364,8 @@ class Model:
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
             spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
             spec /= ((self.R_star*6.957e8)**2.0)
-            # spec = 1.-spec
-            spec = -spec
+            spec = 1.-spec
+            # spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(self.abundances_dict)
@@ -902,7 +902,7 @@ class Model:
     def compute_2D_KpVsys_map_fast_without_model_reprocess(self, theta_fit_dd = None, posterior = None, 
                                                            datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
-                             species_info = None, vel_window = None, fixed_model_spec = None, fixed_model_wav = None ):
+                             species_info = None, vel_window = None, fixed_model_spec = None, fixed_model_wav = None, only_in_transit = False ):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
 
@@ -990,10 +990,16 @@ class Model:
             data_wavsoln = datadetrend_dd[date]['data_wavsoln']
             phases = datadetrend_dd[date]['phases']
             berv = datadetrend_dd[date]['berv']
+            if only_in_transit:
+                in_transit_mask = datadetrend_dd[date]['in_transit_mask']
+            else:
+                in_transit_mask = np.ones((len(phases), ), dtype = bool)
             
             print('berv', berv)
             
             nspec = datacube_mean_sub.shape[1]
+            
+            print('Number of exposures: ', nspec)
             
             cc_matrix_all_orders, logL_matrix_all_orders = np.zeros((len(order_inds), nspec, nVsys)), np.zeros((len(order_inds), nspec, nVsys))
             ## Loop over orders
@@ -1024,7 +1030,7 @@ class Model:
                         _, cc_matrix_all_orders[i_ind,it,iv], logL_matrix_all_orders[i_ind,it,iv] = crocut.fast_cross_corr(data=datacube_mean_sub[ind,it,~avoid_mask], 
                                                                                                                      model=model_spec_flux_shift[~avoid_mask])
                         
-            CC_matrix_all_dates[dt] , logL_matrix_all_dates[dt] = np.sum(cc_matrix_all_orders, axis = 0), np.sum(logL_matrix_all_orders, axis = 0)              
+            CC_matrix_all_dates[dt] , logL_matrix_all_dates[dt] = np.sum(cc_matrix_all_orders[:,in_transit_mask,:], axis = 0), np.sum(logL_matrix_all_orders[:,in_transit_mask,:], axis = 0)              
 
         
         ###### Plot the CC trail matrix to test 
@@ -1074,8 +1080,17 @@ class Model:
         for dt, date in enumerate(datelist):
             CC_KpVsys, logL_KpVsys = np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
             phases = datadetrend_dd[date]['phases']
-            berv = datadetrend_dd[date]['berv']
+            if only_in_transit:
+                in_transit_mask = datadetrend_dd[date]['in_transit_mask']
+            else:
+                in_transit_mask = np.ones((len(phases), ), dtype = bool)
+                
+            phases = datadetrend_dd[date]['phases'][in_transit_mask]
+            berv = datadetrend_dd[date]['berv'][in_transit_mask]
+
             nspec = len(phases)
+            
+            print('Number of exposures: ', nspec)
             
             for iKp, Kp in enumerate(Kp_range):
                 CC_matrix_shifted, logL_matrix_shifted = np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
@@ -1094,6 +1109,61 @@ class Model:
             CC_KpVsys_total+=CC_KpVsys
             logL_KpVsys_total+=logL_KpVsys
             
+            ### save the Kp-Vsys plot for this date as well separately
+            ####### Plot and save 
+            subplot_num = 2
+            fig, axx = plt.subplots(subplot_num, 1, figsize=(8, 8*subplot_num))
+            plt.subplots_adjust(hspace=0.6)
+
+            hnd1 = crocut.subplot_cc_matrix(axis=axx[0],
+                                        cc_matrix=CC_KpVsys/np.std(CC_KpVsys),
+                                        phases=Kp_range,
+                                        velocity_shifts=Vsys_range[vel_window[0]:vel_window[1]],
+                                        ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                        title= 'Normalized CC' ,
+                                        setxlabel=True, plot_type = 'pcolormesh')
+            fig.colorbar(hnd1, ax=axx[0])
+
+            hnd1 = crocut.subplot_cc_matrix(axis=axx[1],
+                                        cc_matrix=logL_KpVsys,
+                                        phases=Kp_range,
+                                        velocity_shifts=Vsys_range[vel_window[0]:vel_window[1]],
+                                        ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                        title= 'Total logL' ,
+                                        setxlabel=True, plot_type = 'pcolormesh')
+            fig.colorbar(hnd1, ax=axx[1])
+
+            if theta_fit_dd is not None:
+                for ip in [0,1]:
+                    axx[ip].vlines(x=theta_fit_dd['Vsys'][ind], ymin=Kp_range[0], ymax=theta_fit_dd['Kp'][ind]-5., color='k', linestyle='dashed')
+                    axx[ip].vlines(x=theta_fit_dd['Vsys'][ind], ymin=theta_fit_dd['Kp'][ind]+5., ymax=Kp_range[-1], color='k', linestyle='dashed')
+
+                    axx[ip].hlines(y=theta_fit_dd['Kp'][ind], xmin=Vsys_range[vel_window[0]:vel_window[1]][0], xmax=theta_fit_dd['Vsys'][ind]-5., color='k', linestyle='dashed')
+                    axx[ip].hlines(y=theta_fit_dd['Kp'][ind], xmin=theta_fit_dd['Vsys'][ind]+5., xmax=Vsys_range[vel_window[0]:vel_window[1]][-1], color='k', linestyle='dashed')
+            else:
+                for ip in [0,1]:
+                    axx[ip].vlines(x=self.Vsys_pred, ymin=Kp_range[0], ymax=self.Kp_pred-5., color='w', linestyle='dashed')
+                    axx[ip].vlines(x=self.Vsys_pred, ymin=self.Kp_pred+5., ymax=Kp_range[-1], color='w', linestyle='dashed')
+
+                    axx[ip].hlines(y=self.Kp_pred, xmin=Vsys_range[vel_window[0]:vel_window[1]][0], xmax=self.Vsys_pred-5., color='w', linestyle='dashed')
+                    axx[ip].hlines(y=self.Kp_pred, xmin=self.Vsys_pred+5., xmax=Vsys_range[vel_window[0]:vel_window[1]][-1], color='w', linestyle='dashed')
+
+                
+
+            axx[0].set_ylabel(r'K$_{P}$ [km/s]')
+            axx[0].set_xlabel(r'V$_{sys}$ [km/s]')
+            axx[1].set_ylabel(r'K$_{P}$ [km/s]')
+            axx[1].set_xlabel(r'V$_{sys}$ [km/s]')
+            
+            plt.suptitle(date)
+            if species_info is None:
+                plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess_'+date+'_.png', format='png', dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess' + species_info + '_'+date+'_.png', format='png', dpi=300, bbox_inches='tight')
+                
+        ##### ##### ##### ##### ##### ##### ##### ##### ##### ##### 
+        ##### Save the total ####  ##### ##### ##### ##### ##### 
+        ##### ##### ##### ##### ##### ##### ##### ##### ##### 
         KpVsys_save = {}
         KpVsys_save['logL'] = logL_KpVsys_total
         KpVsys_save['cc'] = CC_KpVsys_total
@@ -1107,17 +1177,19 @@ class Model:
         else:
             np.save(savedir + 'KpVsys_fast_no_model_reprocess_dict_' + species_info + '.npy', KpVsys_save)
         
-        ####### Plot and save 
+        ##### ##### ##### ##### ##### ##### ##### ##### 
+        ####### Plot and save ##### ##### ##### ##### 
+        ##### ##### ##### ##### ##### ##### ##### ##### 
         subplot_num = 2
         fig, axx = plt.subplots(subplot_num, 1, figsize=(8, 8*subplot_num))
         plt.subplots_adjust(hspace=0.6)
 
         hnd1 = crocut.subplot_cc_matrix(axis=axx[0],
-                                    cc_matrix=KpVsys_save['cc'],
+                                    cc_matrix=KpVsys_save['cc']/np.std(KpVsys_save['cc']),
                                     phases=Kp_range,
                                     velocity_shifts=KpVsys_save['Vsys_range_windowed'],
                                     ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
-                                    title= 'Total CC' ,
+                                    title= 'Normalized CC' ,
                                     setxlabel=True, plot_type = 'pcolormesh')
         fig.colorbar(hnd1, ax=axx[0])
 
