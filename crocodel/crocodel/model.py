@@ -172,7 +172,7 @@ class Model:
 
             start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
             
-            #### FIRST rotationally broaden the PHOENIX Stellar flux, and then redampel to instrument resolution  
+            #### FIRST rotationally broaden the PHOENIX Stellar flux, then resample to wavelength solution of the model. Convolving to the instrument resolution and instrument wavelength grid happens later.
             self.phoenix_model_flux_orig = phoenix_model_flux_inp[start_ind:stop_ind]
             self.phoenix_model_wave_orig = phoenix_model_wave_inp[start_ind:stop_ind]
             self.phoenix_model_wave_orig_nm = phoenix_model_wave_inp[start_ind:stop_ind] * 1e9 ## convert to nm for plotting 
@@ -180,13 +180,34 @@ class Model:
             self.phoenix_model_flux_broaden, self.phoenix_model_wave_broaden = self.rotation(vsini = self.vsini, 
                                                                                              model_wav = phoenix_model_wave_inp[start_ind:stop_ind], 
                                                        model_spec = phoenix_model_flux_inp[start_ind:stop_ind])
-
-                        
-            # phoenix_spl = splrep(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
-            # self.phoenix_model_flux = splev(self.gen.lam, phoenix_spl)
-            ###### Using make_interp_spline instead of splrep, splev for interpolation 
-            phoenix_spl = interpolate.make_interp_spline(self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden)
-            self.phoenix_model_flux = phoenix_spl(self.gen.lam)
+            ### Checked that rotation kernel convolution isn't causign any boundary effects.
+            
+            ### Smooth the broadened spectrum
+            self.phoenix_model_flux_broaden_smooth = self.convolve_spectra_to_given_std(model_orig = self.phoenix_model_flux_broaden, 
+                                                                                                                   std = 200)
+            
+            ###### Resample broadened and smoothed model to model wavelength grid in nm
+            phoenix_spl = interpolate.make_interp_spline((10**9)*self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden_smooth, 
+                                                         bc_type='natural')
+            
+            self.phoenix_model_flux = self.R_star*self.R_star*6.957e8*6.957e8*phoenix_spl((10**9)*self.gen.lam) 
+            self.phoenix_model_wav = (10**9)*self.gen.lam
+            
+            ###### Resample broadened model to model wavelength grid in nm
+            # phoenix_spl = interpolate.make_interp_spline((10**9)*self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden, bc_type='natural')
+            # self.phoenix_model_flux_fine = phoenix_spl((10**9)*self.gen.lam) 
+            
+            # #### Smooth the PHOENIX model by a Gaussian kernel of std = 250 as done by Smith et al. 2024, scale by the radius of the star 
+            # self.phoenix_model_flux = self.R_star*self.R_star*6.957e8*6.957e8 * self.convolve_spectra_to_given_std(model_orig = self.phoenix_model_flux_fine, 
+            #                                                                                                        std = 200)
+            # self.phoenix_model_wav = (10**9)*self.gen.lam     
+            
+            # plt.figure(figsize = (10,10))
+            # plt.plot(self.phoenix_model_wav, self.phoenix_model_flux, 'k.-',label ='Using')
+            # # plt.plot(self.phoenix_model_wave_orig_nm, self.R_star*self.R_star*6.957e8*6.957e8*self.phoenix_model_flux_orig, label = 'Orig')
+            # # plt.xlim(xmax = 1400)
+            # plt.legend()
+            # plt.savefig('/home/astro/phsprd/code/crocodel/scripts/px.png')
             
             #### Broaden the PHOENIX model flux by the rotational velocity 
             # self.phoenix_model_flux, _ = self.rotation(vsini = self.vsini, model_wav = self.gen.lam, model_spec = self.phoenix_model_flux_unbroadened)
@@ -198,6 +219,35 @@ class Model:
             ## 1 erg is 1e-7 J
             ## PHOENIX model BUNIT needs to be converted from erg/s/cm^2/cm to  J/m2/s : convert to Joules and multiply by wavelength (to get rid of the cm factor in denominator)
     
+    
+    def get_phoenix_modelcube(self, datadetrend_dd = None, model_phoenix_flux = None, model_phoenix_wav = None):
+        
+        ### Convolve spectra to instrument resolution 
+        model_phoenix_flux_lsf = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_phoenix_flux)
+        
+        phoenix_model_spl = interpolate.make_interp_spline(model_phoenix_wav, model_phoenix_flux_lsf, bc_type='natural')
+        phoenix_modelcube = {}
+
+        datelist = list(datadetrend_dd.keys()) 
+        for dt, date in enumerate(datelist):
+            
+            berv = datadetrend_dd[date]['berv']
+            data_wavsoln = datadetrend_dd[date]['data_wavsoln']
+            nspec = len(berv)
+            norder = data_wavsoln.shape[0]
+            nwav = data_wavsoln.shape[1]
+            
+            phoenix_modelcube[date] = np.ones((norder, nspec, nwav))
+
+            for ind in range(norder):
+                for it in range(len(berv)):
+                    RV_star = self.Vsys + berv[it]
+                    wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln[ind,:], 
+                                                                 velocity = -1.*RV_star)
+                    phoenix_modelcube[date][ind,it,:] = phoenix_model_spl(wavsoln_shift)
+
+        return phoenix_modelcube
+    
     ####### Rotation kernel #######
     def rotation(self, vsini = None, model_wav = None, model_spec = None):
         assert(vsini >= 1.0)
@@ -208,28 +258,34 @@ class Model:
         # import pdb
         # pdb.set_trace()
         # return spec_conv[hlen:-hlen], model_wav[hlen:-hlen]
+        
         return spec_conv, model_wav
     
     def get_rotation_kernel(self, vsini, model_wav):
         nx, = model_wav.shape
-        dRV = np.mean(2.0*(model_wav[1:]-model_wav[0:-1])/(model_wav[1:]+model_wav[0:-1]))*(self.vel_c_SI*1.0e-3) ## Speed of light has been convereted to km/s
-        nker = 401
+        dRV = np.mean(2.0*(model_wav[1:]-model_wav[0:-1])/(model_wav[1:]+model_wav[0:-1]))*(self.vel_c_SI) ## Speed of light is in m/s
+        vsini = vsini * 1e3 ### Convert vsini to m/s
+        
+        nker = 801
         hnker = (nker-1)//2
         rker = np.zeros(nker)
+        
         for ii in range(nker):
             ik = ii - hnker
             x = ik*dRV / vsini
             if np.abs(x) < 1.0:
                 y = np.sqrt(1-x**2)
                 rker[ii] = y
+
         rker /= rker.sum() # Normalize the kernel
         assert(rker[0]==0.0 and rker[-1]==0.0)
         rker = rker[rker>0]
+        
         return rker
     
-    def get_gaussian_kernel(self, span = None, sigma = None):
-        # x = np.arange(-int(span/2), int(span/2)+1, stepsize)
-        x = np.linspace(-int(span/2), int(span/2)+1, num = 200)
+    def get_gaussian_kernel(self, size = None, sigma = None):
+        x = np.arange(-size // 2 + 1, size // 2 + 1)
+        # x = np.linspace(-int(span/2), int(span/2)+1, num = 200)
         kernel = np.exp(-x**2 / (2 * sigma**2))
         return kernel / np.sum(kernel)  # Normalize the kernel
     
@@ -471,12 +527,31 @@ class Model:
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(self.abundances_dict)
-            spec /= self.stellar_flux(self.R_star, self.gen.lam, self.T_eff)
+            spec /= self.stellar_flux_BB(self.R_star, self.gen.lam, self.T_eff)
         
         return (10**9) * self.gen.lam, 10**self.log_fs * spec 
     
-         
-    def stellar_flux(self, Rs, lam, T):
+    def get_Fp_spectra(self):
+        """Compute only the Fp in case of emission.
+
+        :return: Wavelength (in nm) and transmission or emission spectrum arrays.
+        :rtype: array_like
+        """
+        if self.method == "transmission":
+            # # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
+            # spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
+            # spec /= ((self.R_star*6.957e8)**2.0)
+            # # spec = 1.-spec
+            # spec = -spec
+            sys.exit('Method only applicable to emission.')
+        elif self.method == 'emission':
+            # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
+            spec = self.gen.genesis(self.abundances_dict)
+            # spec /= self.stellar_flux(self.R_star, self.gen.lam, self.T_eff)
+            # return spec
+        return (10**9) * self.gen.lam, 10**self.log_fs * spec     
+    
+    def stellar_flux_BB(self, Rs, lam, T):
         """Compute the flux from the star, either as blackbody or from a PHOENIX model.
 
         :param Rs: Stellar radius, in terms of solar radius.
@@ -488,18 +563,18 @@ class Model:
         :return: Blackbody flux of the star.
         :rtype: array
         """
-        if not self.use_stellar_phoenix:
-            lam_5 = lam*lam*lam*lam*lam
-            Bs = (2.0*sc.h*self.vel_c_SI*self.vel_c_SI)/(lam_5*(np.expm1((sc.h*self.vel_c_SI)/(lam*sc.k*T))))
-            # import pdb
-            # pdb.set_trace()
-            return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
-        else:
-            # phoenix_flux = self.phoenix_model_flux * (self.vel_c_SI/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
-            phoenix_flux = self.phoenix_model_flux *Rs*Rs*6.957e8*6.957e8
-            
-            return phoenix_flux
+        lam_5 = lam*lam*lam*lam*lam
+        Bs = (2.0*sc.h*self.vel_c_SI*self.vel_c_SI)/(lam_5*(np.expm1((sc.h*self.vel_c_SI)/(lam*sc.k*T))))
+        # import pdb
+        # pdb.set_trace()
+        return Bs*np.pi*Rs*Rs*6.957e8*6.957e8
     
+    # def get_stellar_flux_PHOENIX_cube(self, Rs):
+
+    #     # phoenix_flux = self.phoenix_model_flux * (self.vel_c_SI/(lam*lam)) * lam * np.pi*Rs*Rs*6.957e8*6.957e8
+    #     phoenix_flux = self.phoenix_model_flux *Rs*Rs*6.957e8*6.957e8
+        
+    #     phoenix_flux_
     
     def get_contribution_function(self):
         X_dict = self.abundances_dict
@@ -528,12 +603,35 @@ class Model:
         
         FWHM = np.mean(delwav_by_wav/delwav_by_wav_model)
         sig = FWHM / (2. * np.sqrt(2. * np.log(2.) ) )
-        gauss_kernel = self.get_gaussian_kernel(span = 200, sigma = sig)
+        gauss_kernel = self.get_gaussian_kernel(size = sig*10, sigma = sig)
         # model_spec = np.convolve(model_spec_orig)           
         model_spec = np.convolve(model_spec_orig, gauss_kernel, mode = 'same')
         return model_spec
     
-    def get_reprocessed_modelcube(self, model_spec = None, model_wav = None, datacube = None, 
+    def convolve_spectra_to_given_std(self, model_orig=None, std = None):
+        """Convolve the given input model spectrum to the instrument resolution. 
+        Assumes that the instrument resolution is constant with wavelength.
+
+        :param model_spec_orig: Given 1D model spectrum flux, defaults to None
+        :type model_spec_orig: array_like
+        :return: Model spectrum convolved to the instrument resolution.
+        :rtype: array_like
+        """
+        gauss_kernel = self.get_gaussian_kernel(size = std*10, sigma = std)     
+        model_spec = np.convolve(model_orig, gauss_kernel, mode = 'same')
+        
+        # Pad the signal symmetrically
+        # model_spec_padded = np.pad(model_orig, (std*10 // 2, std*10 // 2), mode='symmetric')
+
+        # Perform convolution
+        # model_spec = np.convolve(model_spec_padded, gauss_kernel, mode='valid')
+        return model_spec
+    
+    def get_reprocessed_modelcube(self, model_spec = None, model_wav = None, 
+                                  
+                                  model_Fp = None, phoenix_modelcube = None,
+                                  
+                                  datacube = None, 
                                   datacube_detrended = None, data_wavsoln = None,
                                   pca_eigenvectors = None, colmask = None, post_pca_mask = None,
                                   phases = None, berv = None):
@@ -584,7 +682,11 @@ class Model:
         datamodel_detrended = np.empty((nspec, nwav))
         
         # model_spl = splrep(model_wav, model_spec)
-        model_spl = interpolate.make_interp_spline(model_wav, model_spec)
+        if self.use_stellar_phoenix:
+            model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')
+        else:
+            model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')
+        
         model_spec_shift_cube = np.empty((nspec, nwav))
         
         # Based on given value of Kp, shift the 1D model by the expected total velocity of the planet for each exposure
@@ -596,6 +698,13 @@ class Model:
             model_spec_shift_exp = model_spl(data_wavsoln_shift)
             model_spec_shift_cube[it, :] = model_spec_shift_exp
 
+        ######## Check if you are using phoenix models, 
+        ##### if yes then model_spec_shift_cube is only Fp, and you need to normalize it by phoenix_modelcube,
+        ##### else just keep using it as is.
+        if self.use_stellar_phoenix:
+            model_spec_shift_cube = model_spec_shift_cube/phoenix_modelcube
+        
+        
         # Inject the model into the data (should work for both transmission and emission as for transmission the model_spec has -ve sign)
         datamodel = datacube * (1. + model_spec_shift_cube)
 
@@ -656,15 +765,38 @@ class Model:
             else:
                 setattr(self, pname, theta[i])
                 # print('Setting ', pname, ': ', theta[i])
+        
+        
+        datelist = list(datadetrend_dd.keys()) 
+        
         #######################################################################
         #######################################################################
                 
         # Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        model_wav, model_spec_orig = self.get_spectra()
-        # Convolve the model to the instrument resolution already
-        model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-        
-        datelist = list(datadetrend_dd.keys()) 
+        if self.use_stellar_phoenix:
+            model_wav, model_Fp_orig = self.get_Fp_spectra()
+            
+            phoenix_modelcube_orig_dict = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+                                                           model_phoenix_flux = self.phoenix_model_flux, 
+                                                           model_phoenix_wav = self.phoenix_model_wav)
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig)
+            
+            phoenix_modelcube = {}
+            for date in datelist:
+                phoenix_modelcube[date] = np.ones((phoenix_modelcube_orig_dict[date].shape[0], phoenix_modelcube_orig_dict[date].shape[1]))
+                for it in range(phoenix_modelcube.shape[0]):
+                    phoenix_modelcube[date][it,:] = self.convolve_spectra_to_instrument_resolution(model_spec_orig=phoenix_modelcube_orig_dict[date][it,:])
+                
+        else:
+            model_wav, model_spec_orig = self.get_spectra()        
+            # Convolve the model to the instrument resolution already
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
+            model_Fp = None
+            phoenix_modelcube = {}
+            for date in datelist:
+                phoenix_modelcube[date] = None
+            
 
         logL_per_date = np.empty(len(datelist))
          
@@ -680,15 +812,21 @@ class Model:
                 nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
                 
                 # Calculate the reprocessed modelcube for the given values of Kp and Vsys
-                model_reprocess, avoid_mask = self.get_reprocessed_modelcube(model_spec = model_spec, model_wav = model_wav, 
+                model_reprocess, avoid_mask = self.get_reprocessed_modelcube(
+                                                model_spec = model_spec, model_wav = model_wav, 
+                                                
+                                                model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube[date],
+                                                
                                                 datacube = datadetrend_dd[date]['datacube'][ind, :, :], 
                                                 datacube_detrended = datadetrend_dd[date]['datacube_detrended'][ind, :, :], 
                                                 data_wavsoln = datadetrend_dd[date]['data_wavsoln'][ind, :],
                                         pca_eigenvectors = datadetrend_dd[date]['pca_eigenvectors'][ind][:], 
                                         colmask = datadetrend_dd[date]['colmask'][ind, :],
                                         post_pca_mask = datadetrend_dd[date]['post_pca_mask'][ind, :],
-                                        phases = datadetrend_dd[date]['phases'], berv = datadetrend_dd[date]['berv'])
-
+                                        phases = datadetrend_dd[date]['phases'], berv = datadetrend_dd[date]['berv'], 
+                                        )
+                
+                
                 # Instantiate arrays to store cross-covariance, cross-correlation, and log-likelihood values per exposure 
                 R_per_spec, C_per_spec, logL_per_spec = np.empty(nspec), np.empty(nspec), np.empty(nspec)
 
@@ -746,7 +884,7 @@ class Model:
         # Convolve model to instrument resolution
         model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig, model_wav_orig=model_wav)
         # model_spl = splrep(model_wav, model_spec)
-        model_spl = interpolate.make_interp_spline(model_wav, model_spec)
+        model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')
         # Dictionary to store the CCF trail matrix
         ccf_trail_matrix_dd = {}
         
@@ -833,8 +971,13 @@ class Model:
             return ccf_trail_matrix_dd
     
     def compute_2D_KpVsys_map(self, theta_fit_dd = None, posterior = 'median', datadetrend_dd = None, order_inds = None, 
-                             Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None, fixed_model_spec = None, fixed_model_wav = None):
-        """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
+                             Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None, 
+                             fixed_model_spec = None, fixed_model_wav = None, 
+                             ):
+        """
+        
+        
+        For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys.
         
 
@@ -897,15 +1040,29 @@ class Model:
         
         nKp, nVsys = len(Kp_range), len(Vsys_range)
 
-        ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        if fixed_model_spec is None:
-            model_wav, model_spec_orig = self.get_spectra()
-        else:
-            model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
-        # Convolve the model to instrument resolution
-        model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-        
         datelist = list(datadetrend_dd.keys()) 
+
+        if self.use_stellar_phoenix:
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra()
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+            phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+                                                        model_phoenix_flux = self.phoenix_model_flux, 
+                                                        model_phoenix_wav = self.phoenix_model_wav)
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig)
+            model_spec = None
+            
+        else:
+            if fixed_model_spec is None:
+                model_wav, model_spec_orig = self.get_spectra()
+            else:
+                model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec   
+            # Convolve the model to the instrument resolution already
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
+            model_Fp, phoenix_modelcube = None, None
         
         # Dictionaries to store the R, C, and logL maps 
         R_dd, C_dd, logL_dd = {}, {}, {}
@@ -933,6 +1090,9 @@ class Model:
                         nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
                         # Compute the reprocessed model 
                         model_reprocess, avoid_mask = self.get_reprocessed_modelcube(model_spec = model_spec, model_wav = model_wav, 
+                                                                                     
+                                                                                     model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube[date][ind,:,:],
+                                                                                     
                                                         datacube = datadetrend_dd[date]['datacube'][ind, :, :], 
                                                         datacube_detrended = datadetrend_dd[date]['datacube_detrended'][ind, :, :], 
                                                         data_wavsoln = datadetrend_dd[date]['data_wavsoln'][ind, :],
@@ -1009,7 +1169,8 @@ class Model:
     def compute_2D_KpVsys_map_fast_without_model_reprocess(self, theta_fit_dd = None, posterior = None, 
                                                            datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
-                             species_info = None, vel_window = None, fixed_model_spec = None, fixed_model_wav = None):
+                             species_info = None, vel_window = None, 
+                            fixed_model_spec = None, fixed_model_wav = None):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
 
@@ -1065,6 +1226,8 @@ class Model:
             #######################################################################
             #######################################################################
 
+        datelist = list(datadetrend_dd.keys())
+
         nKp, nVsys = len(Kp_range), len(Vsys_range)
         ################# Due you want to zero out certain species to get the contribution of others? ######## NOT IMPLMENTED YET : 13-06-2024
         if exclude_species is not None:
@@ -1073,19 +1236,29 @@ class Model:
         
         
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        if fixed_model_spec is None:
-            model_wav, model_spec_orig = self.get_spectra()
-        else:
-            model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+        if self.use_stellar_phoenix:
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra()
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
             
-        print('Model calculation done, convolving to instrument resolution ...')
-        # Convolve model to instrument resolution
-        model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-        # model_spl = splrep(model_wav, model_spec)
-        model_spl = interpolate.make_interp_spline(model_wav, model_spec)
-             
-        datelist = list(datadetrend_dd.keys()) 
-        
+            phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+                                                        model_phoenix_flux = self.phoenix_model_flux, 
+                                                        model_phoenix_wav = self.phoenix_model_wav) ## This includes broadening by instrument LSF
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig)
+            model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+
+        else:
+            if fixed_model_spec is None:
+                model_wav, model_spec_orig = self.get_spectra()
+            else:
+                model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+                
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
+            model_Fp, phoenix_modelcube = None, None 
+            model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')   
+
         #####################################################################################################################################################################
         #####################################################################################################################################################################
         ########### Loop over dates, and get trail matrix (summed across all detectors) and then convert that to KpVsys maps for that date by shift by Kp and interpolation 
@@ -1099,6 +1272,8 @@ class Model:
             phases = datadetrend_dd[date]['phases']
             berv = datadetrend_dd[date]['berv']
             nspec = datacube_mean_sub.shape[1]
+            if self.use_stellar_phoenix:
+                phoenix_modelcube_this_date = phoenix_modelcube[date]
             
             cc_matrix_all_orders, logL_matrix_all_orders = np.zeros((len(order_inds), nspec, nVsys)), np.zeros((len(order_inds), nspec, nVsys))
             ## Loop over orders
@@ -1115,16 +1290,39 @@ class Model:
                         # Effectively Doppler shifting the model by +vel
                         # model_spec_flux_shift = splev(data_wavsoln_shift, model_spl)
                         model_spec_flux_shift = model_spl(data_wavsoln_shift)
+                        
+                        # if it == 0 and iv ==0:
+                            # plt.figure(figsize = (10,8))
+                            # plt.plot(data_wavsoln_shift, model_spec_flux_shift/phoenix_modelcube_this_date[ind,it, :], color = 'r', label = 'FpFs')
+                            # plt.legend()
+                            # plt.savefig(savedir + 'FpFs_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')  
+                            
+                            # plt.figure(figsize = (10,8))
+                            # plt.plot(data_wavsoln_shift, model_spec_flux_shift, color = 'r', label = 'Fp')
+                            # plt.legend()
+                            # plt.savefig(savedir + 'Fp_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')  
+                            
+                            # plt.figure(figsize = (10,8))
+                            # plt.plot(data_wavsoln_shift, phoenix_modelcube_this_date[ind,it, :], color = 'r', label = 'Fs')
+                            # plt.legend()
+                            # plt.savefig(savedir + 'Fs_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight') 
+                        
+                        # plt.close('all')
+                        
+                        if self.use_stellar_phoenix:
+                            model_spec_flux_shift = model_spec_flux_shift/phoenix_modelcube_this_date[ind,it, :]
+                        
                         # Subtract the mean from the model
                         model_spec_flux_shift = model_spec_flux_shift - crocut.fast_mean(model_spec_flux_shift)
-                        # Compute the cross correlation value between the shifted model and the data
+                        #### Compute the cross correlation value between the shifted model and the data
                         
                         # if it == 0 and iv == 0:
-                        #     plt.figure(figsize = (10,8))
-                        #     plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
-                        #     plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
-                        #     plt.legend()
-                        #     plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')    
+                            # plt.figure(figsize = (10,8))
+                            # plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
+                            # plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
+                            # plt.legend()
+                            # plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')  
+                                                        # plt.figure(figsize = (10,8)) 
                         # plt.close('all')
                         _, cc_matrix_all_orders[i_ind,it,iv], logL_matrix_all_orders[i_ind,it,iv] = crocut.fast_cross_corr(data=datacube_mean_sub[ind,it,~avoid_mask], 
                                                                                                                      model=model_spec_flux_shift[~avoid_mask])

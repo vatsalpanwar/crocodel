@@ -1,5 +1,6 @@
 infostring: 
-  info: 'IGRINS_WASP-122b_FAST_FIX_MODEL_POKAZATEL_Krishna_RCTE_logZ_-2_'
+  # info: 'IGRINS_WASP-122b_FAST_FIX_MODEL_POKAZATEL_Krishna_RCTE_logZ_-2_'
+  info: 'IGRINS_WASP-122b_norm_data-NO_SLOW_FIX_MODEL_PHOENIX_POKAZATEL_Krishna_RCTE_logZ_0_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -15,8 +16,9 @@ data: # Each high level key under data should be the name of the instrument.
     method: emission
     resolution: 45000
     dates:
-      '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
-    
+      # '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
+      '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/WASP-122b_IGRINS_2023-12-04_normalize_data-NO__04-12-2024T16-59-40/wave_recal_WASP-122b_IGRINS_2023-12-04_normalize_data-NO__2023-12-04_spdd.npy']
+      # '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/WASP-122b_IGRINS_2023-12-04_normalize_data-YES__04-12-2024T17-00-23/wave_recal_WASP-122b_IGRINS_2023-12-04_normalize_data-YES__2023-12-04_spdd.npy']
     N_order_all : 42
 
     skip_order_inds: []
@@ -168,7 +170,7 @@ model:
   phase_offset: 0.
   Kp: 188.055
 
-  use_stellar_phoenix: False
+  use_stellar_phoenix: True
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 
@@ -177,8 +179,8 @@ model:
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
   fix_model_info:
    fix_model: True
-  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_03-12-2024T13-25-57/'
-   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_-2_03-12-2024T13-20-43/'
+   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_06-12-2024T14-50-02/'
+  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_-2_03-12-2024T13-20-43/'
   ### the above directory should contain abund_dict.npy, spec_dict.npy, and TP_dict.npy
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######

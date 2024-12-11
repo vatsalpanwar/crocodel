@@ -238,15 +238,22 @@ Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
 ##############################################################################################
 if fix_model:
     fix_model_path = fix_model_info['fix_model_path']
-    model_dat = np.load(fix_model_path + 'spec_dict.npy', allow_pickle = True).item()
+    model_dd = np.load(fix_model_path + 'spec_dict.npy', allow_pickle = True).item()
+    
     if config_dd_global['data'][INST_GLOBAL]['method'] == 'emission':
-        wav_nm, spec = model_dat['lam_nm'], model_dat['spec']
+        if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:   
+            wav_nm, spec = model_dd['lam_nm'], model_dd['Fp']
+        else:
+            wav_nm, spec = model_dd['lam_nm'], model_dd['spec']
+    
     elif config_dd_global['data'][INST_GLOBAL]['method'] == 'transmission':
-        wav_nm, spec = model_dat['lam_nm'], 1.-model_dat['spec']
+        wav_nm, spec = model_dd['lam_nm'], 1.-model_dd['spec']
         
     #### For now just copy the abund_dict and TP_dict files; in future can just use them to comput ethe model here instead of precomputing elsewhere.
     copyfile(fix_model_info['fix_model_path'] + 'TP_dict.npy', savedir + 'TP_dict.npy')
     copyfile(fix_model_info['fix_model_path'] + 'abund_dict.npy', savedir + 'abund_dict.npy')
+    copyfile(fix_model_info['fix_model_path'] + 'spec_dict.npy', savedir + 'spec_dict.npy')
+    
     TP_dict = np.load(fix_model_info['fix_model_path'] + 'TP_dict.npy', allow_pickle = True).item()
     abund_dict = np.load(fix_model_info['fix_model_path'] + 'abund_dict.npy', allow_pickle = True).item()
     
@@ -352,6 +359,10 @@ else:
 ##############################################################################
 ###### Make sure everything is set to initial params 
 if not fix_model:
+    ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### 
+    ###### ###### Computing KpVsys maps for fixed model parameters ###### ###### ###### ######
+    ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### 
+    print('Computing KpVsys maps for fixed parameters ...')
     print(fix_param_dict.keys())
     for pname in fix_param_dict.keys():
         if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
@@ -362,20 +373,22 @@ if not fix_model:
 
     print('Computing KpVsys maps...')
     if KpVsys_method == 'slow':
+        print('Using slow method ...')
         KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
                                                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                                     Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir)
 
         planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
     elif KpVsys_method == 'fast':
-        print('Order inds used are: ', order_inds)
+        print('Using fast method ...')
         planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
                                                             datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                                 Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
 
 else:
-    print('Computing KpVsys maps...')
+    print('Computing KpVsys maps for fixed model ...')
     if KpVsys_method == 'slow':
+        print('Using slow method ...')
         KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
                                                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                                     Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir, fixed_model_wav = wav_nm, fixed_model_spec = spec)
@@ -383,6 +396,7 @@ else:
         planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
     
     elif KpVsys_method == 'fast':
+        print('Using fast method ...')
         planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
                                                             datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                                 Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, fixed_model_wav = wav_nm, fixed_model_spec = spec)

@@ -16,6 +16,7 @@ from tqdm import tqdm
 import glob
 import astropy.io.fits as fits
 from scipy.special import comb
+import scipy.constants as sc
 
 def compute_equivalent_width(spectrum = None, wavsoln = None, line_range = None, continuum_range = None):
     """Compute Equivalent Width of a spectral line.
@@ -82,6 +83,16 @@ def BB_flux(temperature=None, wavelength=None):
 
     return waverange, BB_flux_val
 
+def planck_func(lam, T):
+        """Compute the Planck function.
+        """
+        #### lam should be in m
+        lam_5 = lam*lam*lam*lam*lam
+        vel_c_SI = 299792458.0
+        Bs = (2.0*sc.h*vel_c_SI*vel_c_SI)/(lam_5*(np.expm1((sc.h*vel_c_SI)/(lam*sc.k*T))))
+
+        return Bs### *np.pi*Rs*Rs*6.957e8*6.957e8
+    
 def compute_FpFs(planet_temp = None, star_temp = None, wavelength = None, rprs = None):
     """
     Compute the simulated blackbody emission for a planet assuming only blackbody radiation from both the star and the planet.
@@ -92,18 +103,21 @@ def compute_FpFs(planet_temp = None, star_temp = None, wavelength = None, rprs =
     :type star_temp: float
     
 
-    :param wavelength: 1D array of wavelength in which you want to compute the emission spectrum of the planet in Angstroms.
+    :param wavelength: 1D array of wavelength in which you want to compute the emission spectrum of the planet in nm.
     :type wavelength: array_like
     
     :param rprs: float
     Planet to star radius ratio.
 
-    :return: Arrays of Wavelength in AA and FpFs.
+    :return: Arrays of Wavelength in nm and FpFs.
     :rtype: array_like 
     """
 
-    _, BB_model_planet = BB_flux(temperature=planet_temp, wavelength=wavelength)
-    _, BB_model_star = BB_flux(temperature=star_temp, wavelength=wavelength)
+    # _, BB_model_planet = BB_flux(temperature=planet_temp, wavelength=wavelength)
+    # _, BB_model_star = BB_flux(temperature=star_temp, wavelength=wavelength)
+    
+    BB_model_planet = planck_func(wavelength*1e-9, planet_temp)
+    BB_model_star = planck_func(wavelength*1e-9, star_temp)
 
     FpFs = (rprs ** 2.) * (BB_model_planet / BB_model_star)
 

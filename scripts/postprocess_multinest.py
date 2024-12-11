@@ -361,6 +361,7 @@ for i in range(len(chain_inds)):
 plt.plot(temp_list['median'],press_list['median'], color = 'k' )
 
 plt.ylim(press_list['median'].max(), press_list['median'].min())
+plt.xlim(1600.,3500.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
@@ -373,6 +374,7 @@ plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['tem
 plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
 
 plt.ylim(press_list['median'].max(), press_list['median'].min())
+plt.xlim(1600.,3500.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
@@ -495,6 +497,7 @@ plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['tem
 plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
 
 plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
+plt.xlim(1600.,3500.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
@@ -509,6 +512,7 @@ plt.fill_betweenx(tp_dict['press_median'],tp_dict['temp_min_sig'], tp_dict['temp
 # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
 plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
 plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
+plt.xlim(1600.,3500.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
