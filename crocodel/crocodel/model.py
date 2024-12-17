@@ -140,6 +140,7 @@ class Model:
         
         # Planet properties 
         self.R_planet= self.config['model']['R_planet'] # Radius of the planet, in terms of R_Jup
+        self.vsini_planet = self.config['model']['vsini_planet']
         self.log_g= self.config['model']['log_g'] # Surface gravity, log_g [cgs]
         self.P_ref= self.config['model']['P_ref'] # Reference pressure, in log10 bars
         self.cl_P = self.config['model']['cl_P'] # log10(cloud_pressure) in bars 
@@ -776,22 +777,23 @@ class Model:
         if self.use_stellar_phoenix:
             model_wav, model_Fp_orig = self.get_Fp_spectra()
             
-            phoenix_modelcube_orig_dict = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+            phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
                                                            model_phoenix_flux = self.phoenix_model_flux, 
                                                            model_phoenix_wav = self.phoenix_model_wav)
             
-            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig)
-            
-            phoenix_modelcube = {}
-            for date in datelist:
-                phoenix_modelcube[date] = np.ones((phoenix_modelcube_orig_dict[date].shape[0], phoenix_modelcube_orig_dict[date].shape[1]))
-                for it in range(phoenix_modelcube.shape[0]):
-                    phoenix_modelcube[date][it,:] = self.convolve_spectra_to_instrument_resolution(model_spec_orig=phoenix_modelcube_orig_dict[date][it,:])
-                
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spec = None
         else:
             model_wav, model_spec_orig = self.get_spectra()        
+            # Rotationally broaden the spectrum 
+            model_spec_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                            model_wav = model_wav, model_spec = model_spec_orig)
+            
             # Convolve the model to the instrument resolution already
-            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
             model_Fp = None
             phoenix_modelcube = {}
             for date in datelist:
@@ -812,10 +814,14 @@ class Model:
                 nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
                 
                 # Calculate the reprocessed modelcube for the given values of Kp and Vsys
+                if self.use_stellar_phoenix:
+                    phoenix_modelcube_inp = phoenix_modelcube[date][ind,:,:]
+                else:
+                    phoenix_modelcube_inp = None
                 model_reprocess, avoid_mask = self.get_reprocessed_modelcube(
                                                 model_spec = model_spec, model_wav = model_wav, 
                                                 
-                                                model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube[date],
+                                                model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube_inp,
                                                 
                                                 datacube = datadetrend_dd[date]['datacube'][ind, :, :], 
                                                 datacube_detrended = datadetrend_dd[date]['datacube_detrended'][ind, :, :], 
@@ -891,7 +897,7 @@ class Model:
         # Loop over all dates 
         for dt, date in tqdm(enumerate(datadetrend_dd.keys())):
             
-            # Array to store the total logL fpr each order 
+            # Array to store the total logL for each order 
             logL_per_ord = np.empty(len(order_inds))
             
             # Dictionary to store the CCF trail matrix for each order for the given date 
@@ -969,6 +975,119 @@ class Model:
         
         else:
             return ccf_trail_matrix_dd
+        
+    def get_ccf_trail_matrix_with_model_reprocess(self, datadetrend_dd = None, order_inds = None, 
+                             Vsys_range = None, savedir = None,
+                             fixed_model_spec = None, fixed_model_wav = None):
+        
+        """For the initial set of model parameters - for each date and each detector, 
+        take a model spectrum, and cross correlate with each exposure, 
+        construct the CCF trail matrix and return. 
+
+        :param datadetrend_dd: Detrended data dictionary, defaults to None
+        :type datadetrend_dd: dict
+        
+        :param order_inds: Index of orders/detectors for which you want to compute the log-likelihood.
+        :type order_inds: array of int
+        
+        :param Vsys_range: Range of Vsys, defaults to None
+        :type Vsys_range: array_like
+        
+        :param plot: Set True if you want to plot the trail matrix., defaults to False
+        :type plot: bool, optional
+        
+        :param savedir: path to the directory where you want to save the plot, defaults to None
+        :type savedir: str, optional
+        
+        :return: CCF trail matrix dictionary
+        :rtype: dict
+        """
+        
+        datelist = list(datadetrend_dd.keys()) 
+
+        if self.use_stellar_phoenix:
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra()
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+            phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+                                                        model_phoenix_flux = self.phoenix_model_flux, 
+                                                        model_phoenix_wav = self.phoenix_model_wav)
+            
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spec = None
+            
+        else:
+            if fixed_model_spec is None:
+                model_wav, model_spec_orig = self.get_spectra()
+            else:
+                model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+            
+            # Rotationally broaden the spectrum 
+            model_spec_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                            model_wav = model_wav, model_spec = model_spec_orig)   
+            # Convolve the model to the instrument resolution already
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+            model_Fp, phoenix_modelcube = None, None
+        
+        
+        ccf_trail_matrix_dd = {}
+        # Loop over all dates 
+        for date in tqdm(datelist):
+            
+            # Dictionary to store the CCF trail matrix for each order for the given date 
+            ccf_trail_matrix_dd[date] = {}
+
+            # Loop over all orders 
+            for ind in tqdm(order_inds):
+                
+                nspec, nvel  = datadetrend_dd[date]['datacube'][ind, :, :].shape[0], len(Vsys_range)
+                
+                # Empty array to fill the CCF matrix for this order and date
+                ccf_trail_matrix_dd[date][ind] = np.empty((nspec, nvel))
+
+                # Loop over all velocities 
+                for iVsys, Vsys in enumerate(Vsys_range):
+                    setattr(self, 'Vsys', Vsys)
+                    setattr(self, 'Kp', 0.)
+                    # Compute the reprocessed model 
+                    model_reprocess, avoid_mask = self.get_reprocessed_modelcube(model_spec = model_spec, model_wav = model_wav, 
+                                                                                    
+                                                                                    model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube[date][ind,:,:],
+                                                                                    
+                                                    datacube = datadetrend_dd[date]['datacube'][ind, :, :], 
+                                                    datacube_detrended = datadetrend_dd[date]['datacube_detrended'][ind, :, :], 
+                                                    data_wavsoln = datadetrend_dd[date]['data_wavsoln'][ind, :],
+                                            pca_eigenvectors = datadetrend_dd[date]['pca_eigenvectors'][ind][:], 
+                                            colmask = datadetrend_dd[date]['colmask'][ind, :],
+                                            post_pca_mask = datadetrend_dd[date]['post_pca_mask'][ind, :],
+                                            phases = datadetrend_dd[date]['phases'], berv = datadetrend_dd[date]['berv'])
+                     
+                    for it in range(nspec):
+                        model_spec_flux_shift = model_reprocess[it, :]
+                        # Mean subtract the model with the zero values ignored
+                        model_spec_flux_shift = crocut.sub_mask_1D(model_spec_flux_shift, avoid_mask)
+                        ccf_trail_matrix_dd[date][ind][it, iVsys], _, _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, :],
+                                                                model=model_spec_flux_shift)
+        # Sum the CCF across all orders for each date 
+        for date in datadetrend_dd.keys():
+            ccf_trail_total = np.zeros((nspec,nvel))
+            for ind in order_inds:
+                ccf_trail_total+=ccf_trail_matrix_dd[date][ind]
+            ccf_trail_matrix_dd[date]['total'] = ccf_trail_total
+            ccf_trail_matrix_dd[date]['phases'] = datadetrend_dd[date]['phases']
+        ccf_trail_matrix_dd['Vsys_range'] = Vsys_range
+        
+        np.save(savedir + 'ccf_trail_matrix_with_model_reprocess.npy', ccf_trail_matrix_dd)
+        
+        return ccf_trail_matrix_dd
+        
     
     def compute_2D_KpVsys_map(self, theta_fit_dd = None, posterior = 'median', datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None, 
@@ -1051,18 +1170,28 @@ class Model:
             phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
                                                         model_phoenix_flux = self.phoenix_model_flux, 
                                                         model_phoenix_wav = self.phoenix_model_wav)
-            
-            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig)
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spec = None
             
         else:
             if fixed_model_spec is None:
                 model_wav, model_spec_orig = self.get_spectra()
             else:
-                model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec   
+                model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec  
+            
+            # Rotationally broaden the spectrum 
+            model_spec_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                            model_wav = model_wav, model_spec = model_spec_orig)
+                 
             # Convolve the model to the instrument resolution already
-            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-            model_Fp, phoenix_modelcube = None, None
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+            model_Fp = None
+            phoenix_modelcube = {}
+            for date in datelist:
+                phoenix_modelcube[date] = None
         
         # Dictionaries to store the R, C, and logL maps 
         R_dd, C_dd, logL_dd = {}, {}, {}
@@ -1089,9 +1218,13 @@ class Model:
                         setattr(self, 'Vsys', Vsys_val) 
                         nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
                         # Compute the reprocessed model 
+                        if self.use_stellar_phoenix:
+                            phoenix_modelcube_inp = phoenix_modelcube[date][ind,:,:]
+                        else:
+                            phoenix_modelcube_inp = None
                         model_reprocess, avoid_mask = self.get_reprocessed_modelcube(model_spec = model_spec, model_wav = model_wav, 
                                                                                      
-                                                                                     model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube[date][ind,:,:],
+                                                                                     model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube_inp,
                                                                                      
                                                         datacube = datadetrend_dd[date]['datacube'][ind, :, :], 
                                                         datacube_detrended = datadetrend_dd[date]['datacube_detrended'][ind, :, :], 
@@ -1142,6 +1275,8 @@ class Model:
         
          ## Save the KpVsys matrix for this model along with all the other relevant info
         KpVsys_save = {}
+        KpVsys_save['model_spec'] = model_reprocess[0,:]
+        KpVsys_save['model_wav'] = model_wav
         KpVsys_save['Kp_range'] = Kp_range
         KpVsys_save['Vsys_range'] = Vsys_range
         
@@ -1245,8 +1380,11 @@ class Model:
             phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
                                                         model_phoenix_flux = self.phoenix_model_flux, 
                                                         model_phoenix_wav = self.phoenix_model_wav) ## This includes broadening by instrument LSF
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
             
-            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig)
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
 
         else:
@@ -1255,8 +1393,14 @@ class Model:
             else:
                 model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
                 
-            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig)
-            model_Fp, phoenix_modelcube = None, None 
+            # Rotationally broaden the spectrum 
+            model_spec_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                            model_wav = model_wav, model_spec = model_spec_orig)   
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+            model_Fp = None
+            phoenix_modelcube = {}
+            for date in datelist:
+                phoenix_modelcube[date] = None
             model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')   
 
         #####################################################################################################################################################################
@@ -1396,6 +1540,13 @@ class Model:
             logL_KpVsys_total+=logL_KpVsys
             
         KpVsys_save = {}
+        if self.use_stellar_phoenix:
+            KpVsys_save['model_spec'] = model_Fp/self.phoenix_model_flux
+            KpVsys_save['model_wav'] = model_wav
+        else:
+            KpVsys_save['model_spec'] = model_spec
+            KpVsys_save['model_wav'] = model_wav
+        KpVsys_save['model_wav'] = model_wav
         KpVsys_save['logL'] = logL_KpVsys_total
         KpVsys_save['cc'] = CC_KpVsys_total
         KpVsys_save['Kp_range'] = Kp_range

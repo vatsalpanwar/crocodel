@@ -205,33 +205,11 @@ Vsys_range_trail = np.arange(Vsys_range_bound_trail[0], Vsys_range_bound_trail[1
 Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
 
 
-######################################################################################
-######################################################################################
-########### Before starting to sample, compute CCF trail matrix with the model computed using initial model parameters.
-######################################################################################
-###################################################################################### 
-
-# if len(glob.glob(savedir + 'ccf*')) == 0: 
-#     print('Computing the trail matrix')     
-#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
-#                                                         order_inds = order_inds, 
-#                                 Vsys_range = Vsys_range_trail, plot = True, savedir = savedir)
-#     print('Done!')
-# else:
-#     print('Trail matrix has been computed before already.')
-
-
 ############################################################################################################################################################################
 ############################################################################################################################################################################
 ############ Compute the KpVsys maps ########################################################################################################################################## 
 ############################################################################################################################################################################
 ############################################################################################################################################################################
-
-##############################################################################
-### Compute and save the forward model based on the initial params of the model 
-##############################################################################
-## All species 
-
 
 ##############################################################################################
 ## Computing the total model and models for individual species ###################################################
@@ -242,23 +220,24 @@ if fix_model:
     
     if config_dd_global['data'][INST_GLOBAL]['method'] == 'emission':
         if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:   
-            wav_nm, spec = model_dd['lam_nm'], model_dd['Fp']
+            wav_nm, spec = model_dd['wav_nm'], model_dd['Fp']
         else:
-            wav_nm, spec = model_dd['lam_nm'], model_dd['spec']
+            wav_nm, spec = model_dd['wav_nm'], model_dd['spec']
     
     elif config_dd_global['data'][INST_GLOBAL]['method'] == 'transmission':
-        wav_nm, spec = model_dd['lam_nm'], 1.-model_dd['spec']
+        wav_nm, spec = model_dd['wav_nm'], 1.-model_dd['spec']
         
     #### For now just copy the abund_dict and TP_dict files; in future can just use them to comput ethe model here instead of precomputing elsewhere.
     copyfile(fix_model_info['fix_model_path'] + 'TP_dict.npy', savedir + 'TP_dict.npy')
     copyfile(fix_model_info['fix_model_path'] + 'abund_dict.npy', savedir + 'abund_dict.npy')
     copyfile(fix_model_info['fix_model_path'] + 'spec_dict.npy', savedir + 'spec_dict.npy')
+    copyfile(fix_model_info['fix_model_path'] + 'contri_func_dict.npy', savedir + 'contri_dict.npy')
     
     TP_dict = np.load(fix_model_info['fix_model_path'] + 'TP_dict.npy', allow_pickle = True).item()
     abund_dict = np.load(fix_model_info['fix_model_path'] + 'abund_dict.npy', allow_pickle = True).item()
     
     SP_INDIV = [x for x in abund_dict.keys() if x != 'press_median']
-    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
+    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.7)
     SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
         
 else:
@@ -354,9 +333,39 @@ else:
     plt.ylabel('Pressure [bar]')
     plt.savefig(savedir + 'TP_profile.png', format='png', dpi=300, bbox_inches='tight')
     
+
+######################################################################################
+########### Compute the CCF trail matrix.
+######################################################################################
+
+print('Trail matrix has been computed before already.')
+print('Computing the trail matrix, by default with model reprocessing ...')
+if fix_model:
+    fixed_model_wav, fixed_model_spec =  wav_nm, spec
+    planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
+                                                    order_inds = order_inds, 
+                            Vsys_range = Vsys_range_trail, savedir = savedir, 
+                            fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec )
+    print('Done!')
+else:
+    for pname in fix_param_dict.keys():
+        if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+            print(pname, fix_param_dict[pname])
+            setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
+        else:
+            setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
+
+    planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
+                                                    order_inds = order_inds, 
+                            Vsys_range = Vsys_range_trail, savedir = savedir)
+    print('Done!')
+
+
+
 ##############################################################################
 ### Compute the 2D KpVsys maps and also plot them for all species included
 ##############################################################################
+
 ###### Make sure everything is set to initial params 
 if not fix_model:
     ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### ###### 

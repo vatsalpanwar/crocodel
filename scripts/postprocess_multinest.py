@@ -436,7 +436,14 @@ print('Done!')
 ##############################################################################
 ### Compute the contribution functions and then overplot them with the TP
 ##############################################################################
-contribution_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
+contri_dict = {}
+contri_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
+contri_dict['wav_nm'] = wav_nm[0]
+contri_dict['tau'] = tau
+contri_dict['P_array'] = P_array
+contri_dict['P_tau'] = P_tau
+contri_dict['contri_func'] = contri_func
+np.save(savedir + 'contri_func_dict.npy', contri_dict) 
 
 ####### Plot the contribution function ################################################
 
@@ -455,7 +462,7 @@ plt.savefig(savedir + 'tau_map.png', dpi = 300, format = 'png', bbox_inches = 't
 # import pdb
 # pdb.set_trace()
 plt.figure(figsize = (16,10))
-plt.pcolormesh(wav_nm[0], P_array[1:], contribution_func.T )
+plt.pcolormesh(wav_nm[0], P_array[1:], contri_func.T )
 plt.xlabel('Wavelength [nm]')
 plt.ylabel('Pressure [bar]')
 plt.yscale('log')

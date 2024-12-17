@@ -263,23 +263,6 @@ plt.legend()
 plt.savefig(savedir + 'init_model_all_species.pdf', format='pdf', bbox_inches='tight')
 np.save(savedir + 'init_forward_models.npy', init_model_dd)
 
-
-####### Plot the stellar PHOENIX model, broadened and unbroadened 
-if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
-    phoenix_orig, wave_orig, phoenix_broad_resamp = planet_model_dict_global[INST_GLOBAL].phoenix_model_flux_orig, planet_model_dict_global[INST_GLOBAL].phoenix_model_wave_orig_nm, planet_model_dict_global[INST_GLOBAL].phoenix_model_flux
-    plt.figure(figsize = (12,5))
-    plt.plot(wave_orig, phoenix_orig, 
-            color = 'xkcd:green', label = 'PHOENIX original', linewidth = 0.7 )
-    plt.plot(wav, phoenix_broad_resamp, 
-            color = 'xkcd:red', label = 'PHOENIX broad', linewidth = 0.7 )
-
-    plt.xlim(xmin = 1600, xmax = 1605) 
-    plt.xlabel('Wavelength [nm]')
-    plt.ylabel('Fs')
-    plt.legend()
-    plt.savefig(savedir + 'phoenix_models_orig_and_broad.pdf', format='pdf', bbox_inches='tight')
-
-# exit()
 ################################################################
 ################################################################
 """
@@ -295,7 +278,6 @@ planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_r
 
 
 
-# exit()
 
 ################################################################
 ################################################################
@@ -320,8 +302,7 @@ def log_likelihood_multinest(cube, ndim, nparams):
         logL_total = planet_model_dict_global[inst].logL_fast(cube, datadetrend_dd = datadetrend_dd_global,
                                                                           order_inds=order_inds)
     except AssertionError:
-        logL_total = -1e100 # -np.inf
-    # print(logL_total)
+        logL_total = -1e90
     return logL_total
 
 ################################################################

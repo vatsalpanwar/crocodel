@@ -156,6 +156,7 @@ model:
   vsini: 7.7 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
+  vsini_planet: 5.1 ## In km/s
   R_planet: 1.52 # In Jupiter radius
   log_g: 3.1082
   P_ref: 0.0 # in log(bar)
@@ -179,7 +180,8 @@ model:
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
   fix_model_info:
    fix_model: True
-   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_06-12-2024T14-50-02/'
+   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_12-12-2024T12-09-18/'
+  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_06-12-2024T14-50-02/'
   #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_-2_03-12-2024T13-20-43/'
   ### the above directory should contain abund_dict.npy, spec_dict.npy, and TP_dict.npy
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######

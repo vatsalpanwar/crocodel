@@ -2,12 +2,12 @@ infostring:
   # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
   # info: 'TEST_INTERP'
   # info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
-  info: 'IGRINS_WASP-122b_POKAZATEL_log_fs_0_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
+  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_free_chem_H2O_dissociation_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
   sampler: 'multinest' 
-  N_live: 500
+  N_live: 1000
 
 workdir:
   results: '/home/astro/phsprd/wasp122b/results/retrievals/'
@@ -18,8 +18,9 @@ data: # Each high level key under data should be the name of the instrument.
     method: emission
     resolution: 45000
     dates:
-      '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
-    
+      # '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
+      '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/WASP-122b_IGRINS_2023-12-04_normalize_data-NO__04-12-2024T16-59-40/wave_recal_WASP-122b_IGRINS_2023-12-04_normalize_data-NO__2023-12-04_spdd.npy']
+
     N_order_all : 42
 
     skip_order_inds: []
@@ -157,6 +158,7 @@ model:
   vsini: 7.7 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
+  vsini_planet: 5.1 ## In km/s
   R_planet: 1.52 # In Jupiter radius
   log_g: 3.1082
   P_ref: 0.0 # in log(bar)
@@ -171,7 +173,7 @@ model:
   phase_offset: 0.
   Kp: 188.055
 
-  use_stellar_phoenix: False
+  use_stellar_phoenix: True
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 
@@ -237,17 +239,17 @@ model:
     log10_beta_h2o: 4.68
     gamma_h2o: 15.9
 
-
   # Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
   abundances:
     co: -4.5
     h2o: -4.5
     oh: -4
-    # fe: -4.3
-    # ti: -4.
-    # si: -4.
-    # ca: -4.3
-    # mg: -4.
+    fe: -4.3
+    ti: -4.
+    si: -4.
+    ca: -4.3
+    mg: -4.
+    v: -4.
     h_minus: -4.
     he: -0.77
   
@@ -259,6 +261,12 @@ model:
     nh3: 'H3N1'
     co2: 'C1O2'
     hcn: 'C1H1N1_1'
+    fe: 'Fe'
+    ti: 'Ti'
+    si: 'Si'
+    ca: 'Ca'
+    mg: 'Mg'
+    v: 'V'
     he: 'He'
 
   cl_P: 0.0 # log(cloud_pressure) in bars 
@@ -392,6 +400,36 @@ model:
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
     
     oh:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+    
+    fe:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1    
+    
+    ti:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    si:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    ca:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    mg:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    v:
       fix_test: -10.2
       prior: Uniform
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
