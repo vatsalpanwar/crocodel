@@ -17,6 +17,7 @@ from scipy.signal import fftconvolve
 from . import astro_utils as aut
 from tqdm import tqdm 
 from astropy.io import ascii as ascii_reader
+import copy
 # from astropy import units as un
 
 
@@ -70,10 +71,18 @@ class Model:
         if self.chemistry == 'eq_chem':
             #create a FastChem object
             #it needs the locations of the element abundance and equilibrium constants files
-            self.fastchem = pyfastchem.FastChem(
-            '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
-            '../fastchem_inputs/input/logK/logK.dat',
-            1)
+            self.include_condensation = self.config['model']['include_condensation']
+            if self.include_condensation:
+                self.fastchem = pyfastchem.FastChem(
+                '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
+                '../fastchem_inputs/input/logK/logK.dat',
+                '../fastchem_inputs/input/logK/logK_condensates.dat',
+                1)
+            else:
+                self.fastchem = pyfastchem.FastChem(
+                '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
+                '../fastchem_inputs/input/logK/logK.dat',
+                1)
             
             # Make a copy of the solar abundances from FastChem
             self.solar_abundances = np.array(self.fastchem.getElementAbundances())
@@ -87,6 +96,10 @@ class Model:
             # Create the input and output structures for FastChem
             self.input_data = pyfastchem.FastChemInput()
             self.output_data = pyfastchem.FastChemOutput()
+            if self.include_condensation:
+                self.input_data.equilibrium_condensation = True
+            else:
+                self.input_data.equilibrium_condensation = False
             
             self.species_fastchem_indices = {}
             for sp in self.species: ## Only do this for the species we are including in the model
@@ -170,7 +183,8 @@ class Model:
         if self.use_stellar_phoenix:
             phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
             phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./self.vel_c_SI) ## converting to J/m2/s
-
+            stellar_spectrum_smooth_length = self.config['model']['stellar_spectrum_smooth_length']
+            
             start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
             
             #### FIRST rotationally broaden the PHOENIX Stellar flux, then resample to wavelength solution of the model. Convolving to the instrument resolution and instrument wavelength grid happens later.
@@ -185,7 +199,7 @@ class Model:
             
             ### Smooth the broadened spectrum
             self.phoenix_model_flux_broaden_smooth = self.convolve_spectra_to_given_std(model_orig = self.phoenix_model_flux_broaden, 
-                                                                                                                   std = 200)
+                                                                                                                   std = stellar_spectrum_smooth_length)
             
             ###### Resample broadened and smoothed model to model wavelength grid in nm
             phoenix_spl = interpolate.make_interp_spline((10**9)*self.phoenix_model_wave_broaden, self.phoenix_model_flux_broaden_smooth, 
@@ -455,7 +469,6 @@ class Model:
         
         return A
     
-    
     @property
     def abundances_dict(self):
         """Setup the dictionary of abundances based on the latest set of parameters.
@@ -505,39 +518,54 @@ class Model:
             for sp in self.species:
                 if sp != 'h_minus':
                     vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
-                    X[sp] = vmr.value 
+                    # X[sp] = vmr.value
+                    X[sp] = vmr 
             vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
-            X["h2"] = vmr_h2.value
+            X["h2"] = vmr_h2
+            # X["h2"] = vmr_h2.value
             
         assert all(X["h2"] >= 0.) # make sure that the hydrogen abundance is not going negative!   
-
         return X 
     
-    def get_spectra(self):
+    def get_spectra(self, exclude_species = None):
         """Compute the transmission or emission spectrum.
 
         :return: Wavelength (in nm) and transmission or emission spectrum arrays.
         :rtype: array_like
         """
+        if exclude_species is not None:
+            abund_dict = copy.deepcopy(self.abundances_dict)
+            for spnm in exclude_species:
+                abund_dict[spnm] = abund_dict[spnm] * 1e-30
+        else:
+            abund_dict = copy.deepcopy(self.abundances_dict)
+            
         if self.method == "transmission":
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
-            spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
+            spec = self.gen.genesis(abund_dict, cl_P = self.cl_P)
             spec /= ((self.R_star*6.957e8)**2.0)
             # spec = 1.-spec
             spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
-            spec = self.gen.genesis(self.abundances_dict)
+            spec = self.gen.genesis(abund_dict)
             spec /= self.stellar_flux_BB(self.R_star, self.gen.lam, self.T_eff)
         
         return (10**9) * self.gen.lam, 10**self.log_fs * spec 
     
-    def get_Fp_spectra(self):
+    def get_Fp_spectra(self, exclude_species = None):
         """Compute only the Fp in case of emission.
 
         :return: Wavelength (in nm) and transmission or emission spectrum arrays.
         :rtype: array_like
         """
+        if exclude_species is not None:
+            abund_dict = copy.deepcopy(self.abundances_dict)
+            for spnm in exclude_species:
+                abund_dict[spnm] = abund_dict[spnm] * 1e-30
+        else:
+            abund_dict = copy.deepcopy(self.abundances_dict)
+            
         if self.method == "transmission":
             # # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
             # spec = self.gen.genesis(self.abundances_dict, cl_P = self.cl_P)
@@ -547,7 +575,7 @@ class Model:
             sys.exit('Method only applicable to emission.')
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
-            spec = self.gen.genesis(self.abundances_dict)
+            spec = self.gen.genesis(abund_dict)
             # spec /= self.stellar_flux(self.R_star, self.gen.lam, self.T_eff)
             # return spec
         return (10**9) * self.gen.lam, 10**self.log_fs * spec     
@@ -859,7 +887,8 @@ class Model:
         return logL_total
     
     def get_ccf_trail_matrix(self, datadetrend_dd = None, order_inds = None, 
-                             Vsys_range = None, plot = False, savedir = None):
+                             Vsys_range = None, plot = False, savedir = None, 
+                             fixed_model_wav = None, fixed_model_spec = None):
         
         """For the initial set of model parameters - for each date and each detector, 
         take a model spectrum, and cross correlate with each exposure, 
@@ -883,14 +912,66 @@ class Model:
         :return: CCF trail matrix dictionary
         :rtype: dict
         """
-        # Calculate the model_spec and model_wav which should be the same for all dates for this instrument 
-        # (all taken in same mode : transmission or emission)
-        model_wav, model_spec_orig = self.get_spectra()
+        # # Calculate the model_spec and model_wav which should be the same for all dates for this instrument 
+        # # (all taken in same mode : transmission or emission)
+        # model_wav, model_spec_orig = self.get_spectra()
         
-        # Convolve model to instrument resolution
-        model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig, model_wav_orig=model_wav)
-        # model_spl = splrep(model_wav, model_spec)
-        model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')
+        # # Convolve model to instrument resolution
+        # model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig, model_wav_orig=model_wav)
+        # # model_spl = splrep(model_wav, model_spec)
+        # model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')
+        
+        datelist = list(datadetrend_dd.keys())
+        
+        if self.use_stellar_phoenix:
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra()
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+            phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+                                                        model_phoenix_flux = self.phoenix_model_flux, 
+                                                        model_phoenix_wav = self.phoenix_model_wav)
+            
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+            plt.figure()
+            plt.plot(model_wav, model_Fp/self.phoenix_model_flux)
+            plt.xlabel('Wavelength [nm]')
+            plt.ylabel('Fp/Fs')
+            plt.savefig(savedir + 'FpFs_actual.png', 
+                        format='png', dpi=300, bbox_inches='tight')
+            
+        else:
+            if fixed_model_spec is None:
+                model_wav, model_spec_orig = self.get_spectra()
+            else:
+                model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+            
+            # Rotationally broaden the spectrum 
+            model_spec_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                            model_wav = model_wav, model_spec = model_spec_orig)   
+            # Convolve the model to the instrument resolution already
+            model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+            model_Fp = None
+            phoenix_modelcube = {}
+            for date in datelist:
+                phoenix_modelcube[date] = None
+            model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')   
+            
+            plt.figure()
+            plt.plot(model_wav, model_spec)
+            plt.xlabel('Wavelength [nm]')
+            plt.ylabel('Fp/Fs')
+            plt.savefig(savedir + 'FpFs_actual.png', 
+                        format='png', dpi=300, bbox_inches='tight')
+        
+        
         # Dictionary to store the CCF trail matrix
         ccf_trail_matrix_dd = {}
         
@@ -902,7 +983,9 @@ class Model:
             
             # Dictionary to store the CCF trail matrix for each order for the given date 
             ccf_trail_matrix_dd[date] = {}
-
+            if self.use_stellar_phoenix:
+                phoenix_modelcube_this_date = phoenix_modelcube[date]
+                
             # Loop over all orders 
             for ind in tqdm(order_inds):
                 
@@ -920,16 +1003,33 @@ class Model:
                         # model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
                         model_spec_shift_exp = model_spl(data_wavsoln_shift)
                         model_spec_shift_exp = model_spec_shift_exp - crocut.fast_mean(model_spec_shift_exp)
+                        if self.use_stellar_phoenix:
+                            model_spec_shift_exp = model_spec_shift_exp/phoenix_modelcube_this_date[ind,it, :]
                         
                         ccf_trail_matrix_dd[date][ind][it, iVsys], _, _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, :],
                                                                                         model=model_spec_shift_exp)
+                        
+                        if iVsys == it == 0:
+                            fig = plt.figure()
+                            plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], datadetrend_dd[date]['datacube_mean_sub'][ind, it, :], label = 'Data')
+                            plt.plot(data_wavsoln_shift, model_spec_shift_exp, label = 'Model')
+                            plt.legend()
+                            plt.savefig(savedir + 'ccf_trail_model_data_comparison_'+date+ '_' + str(ind) + '_'+'.png', 
+                                        format='png', dpi=300, bbox_inches='tight')
+                            plt.close(fig = fig)
+                        
         # Sum the CCF across all orders for each date 
         for date in datadetrend_dd.keys():
             ccf_trail_total = np.zeros((nspec,nvel))
             for ind in order_inds:
                 ccf_trail_total+=ccf_trail_matrix_dd[date][ind]
             ccf_trail_matrix_dd[date]['total'] = ccf_trail_total
-                        
+            ccf_trail_matrix_dd[date]['total'] = ccf_trail_total
+            ccf_trail_matrix_dd[date]['phases'] = datadetrend_dd[date]['phases']
+            ccf_trail_matrix_dd[date]['berv'] = datadetrend_dd[date]['berv']
+        ccf_trail_matrix_dd['Vsys_range'] = Vsys_range
+        np.save(savedir + 'ccf_trail_matrix_NO_model_reprocess.npy', ccf_trail_matrix_dd)
+        
         if plot:
             # First the CCF trail matrix for plot individual dates and orders 
             for date in ccf_trail_matrix_dd.keys():
@@ -953,7 +1053,7 @@ class Model:
                     axx[axis_ind].set_ylabel(r'$\phi$')
                     axx[axis_ind].set_xlabel(r'V$_{rest}$ [km/s]')
 
-                plt.savefig(savedir + 'ccf_trail_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
+                plt.savefig(savedir + 'ccf_trail_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
                 plt.close()
             
                 # Plot the total trail matrix across all dates and detectors 
@@ -969,7 +1069,7 @@ class Model:
                 
                 ax.set_ylabel(r'$\phi$')
                 ax.set_xlabel(r'V$_{rest}$ [km/s]')
-                plt.savefig(savedir + 'ccf_trail_total_'+date+'.pdf', format='pdf', dpi=300, bbox_inches='tight')
+                plt.savefig(savedir + 'ccf_trail_total_'+date+'.png', format='png', dpi=300, bbox_inches='tight')
             
             return ccf_trail_matrix_dd
         
@@ -1075,6 +1175,15 @@ class Model:
                         model_spec_flux_shift = crocut.sub_mask_1D(model_spec_flux_shift, avoid_mask)
                         ccf_trail_matrix_dd[date][ind][it, iVsys], _, _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, :],
                                                                 model=model_spec_flux_shift)
+                        # if iVsys == it == 0:
+                        #     plt.figure()
+                        #     plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], datadetrend_dd[date]['datacube_mean_sub'][ind, it, :], label = 'Data')
+                        #     plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], model_spec_flux_shift, label = 'Model')
+                        #     plt.legend()
+                        #     plt.savefig(savedir + 'ccf_trail_model_data_comparison_'+date+ '_' + str(ind) + '_'+'with_reprocess.png', 
+                        #                 format='png', dpi=300, bbox_inches='tight')
+                        
+                        
         # Sum the CCF across all orders for each date 
         for date in datadetrend_dd.keys():
             ccf_trail_total = np.zeros((nspec,nvel))
@@ -1082,6 +1191,7 @@ class Model:
                 ccf_trail_total+=ccf_trail_matrix_dd[date][ind]
             ccf_trail_matrix_dd[date]['total'] = ccf_trail_total
             ccf_trail_matrix_dd[date]['phases'] = datadetrend_dd[date]['phases']
+            ccf_trail_matrix_dd[date]['berv'] = datadetrend_dd[date]['berv']
         ccf_trail_matrix_dd['Vsys_range'] = Vsys_range
         
         np.save(savedir + 'ccf_trail_matrix_with_model_reprocess.npy', ccf_trail_matrix_dd)
@@ -1153,9 +1263,11 @@ class Model:
             #######################################################################
             ################# Due you want to zero out certain species to get the contribution of others? ########
             ########## For fix param condition (when theta_fit_dd is set to None), this happens outside. 
-            if exclude_species is not None:
-                for spnm in exclude_species:
-                    setattr(self, spnm, 10.**-30.)
+            # if exclude_species is not None:
+            #     for spnm in exclude_species:
+            #         abund_dict = copy.deepcopy(self.abundances_dict)
+            #         abund_dict[spnm] = abund_dict[spnm] * 1e-30
+            #         self.abundances_dict = abund_dict
         
         nKp, nVsys = len(Kp_range), len(Vsys_range)
 
@@ -1163,7 +1275,7 @@ class Model:
 
         if self.use_stellar_phoenix:
             if fixed_model_spec is None:
-                model_wav, model_Fp_orig = self.get_Fp_spectra()
+                model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
             else:
                 model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
                 
@@ -1175,10 +1287,11 @@ class Model:
                                                        model_wav = model_wav, model_spec = model_Fp_orig)
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spec = None
+            model_FpFs_save = model_Fp/self.phoenix_model_flux
             
         else:
             if fixed_model_spec is None:
-                model_wav, model_spec_orig = self.get_spectra()
+                model_wav, model_spec_orig = self.get_spectra(exclude_species=exclude_species)
             else:
                 model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec  
             
@@ -1192,7 +1305,10 @@ class Model:
             phoenix_modelcube = {}
             for date in datelist:
                 phoenix_modelcube[date] = None
-        
+
+            model_FpFs_save = model_spec
+            
+            
         # Dictionaries to store the R, C, and logL maps 
         R_dd, C_dd, logL_dd = {}, {}, {}
         
@@ -1275,7 +1391,7 @@ class Model:
         
          ## Save the KpVsys matrix for this model along with all the other relevant info
         KpVsys_save = {}
-        KpVsys_save['model_spec'] = model_reprocess[0,:]
+        KpVsys_save['model_spec'] = model_FpFs_save
         KpVsys_save['model_wav'] = model_wav
         KpVsys_save['Kp_range'] = Kp_range
         KpVsys_save['Vsys_range'] = Vsys_range
@@ -1297,7 +1413,7 @@ class Model:
         if species_info is None:
             np.save(savedir + 'KpVsys_dict_' + posterior, KpVsys_save)
         else:
-            np.save(savedir + 'KpVsys_dict_' + posterior + '_' + species_info, KpVsys_save)
+            np.save(savedir + 'KpVsys_dict_' + posterior + '_without_' + species_info, KpVsys_save)
         
         return KpVsys_save
     
@@ -1365,15 +1481,17 @@ class Model:
 
         nKp, nVsys = len(Kp_range), len(Vsys_range)
         ################# Due you want to zero out certain species to get the contribution of others? ######## NOT IMPLMENTED YET : 13-06-2024
-        if exclude_species is not None:
-            for spnm in exclude_species:
-                setattr(self, spnm, 10.**-30.)
-        
+        # if exclude_species is not None:
+        #     for spnm in exclude_species:
+        #         # setattr(self, spnm, 10.**-30.)
+        #         abund_dict = copy.deepcopy(self.abundances_dict)
+        #         abund_dict[spnm] = abund_dict[spnm] * 1e-30
+        #         self.abundances_dict = abund_dict
         
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
         if self.use_stellar_phoenix:
             if fixed_model_spec is None:
-                model_wav, model_Fp_orig = self.get_Fp_spectra()
+                model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
             else:
                 model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
             
@@ -1386,10 +1504,11 @@ class Model:
             
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+            model_FpFs_save = model_Fp/self.phoenix_model_flux
 
         else:
             if fixed_model_spec is None:
-                model_wav, model_spec_orig = self.get_spectra()
+                model_wav, model_spec_orig = self.get_spectra(exclude_species=exclude_species)
             else:
                 model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
                 
@@ -1402,7 +1521,8 @@ class Model:
             for date in datelist:
                 phoenix_modelcube[date] = None
             model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')   
-
+            model_FpFs_save = model_spec
+        
         #####################################################################################################################################################################
         #####################################################################################################################################################################
         ########### Loop over dates, and get trail matrix (summed across all detectors) and then convert that to KpVsys maps for that date by shift by Kp and interpolation 
@@ -1540,12 +1660,8 @@ class Model:
             logL_KpVsys_total+=logL_KpVsys
             
         KpVsys_save = {}
-        if self.use_stellar_phoenix:
-            KpVsys_save['model_spec'] = model_Fp/self.phoenix_model_flux
-            KpVsys_save['model_wav'] = model_wav
-        else:
-            KpVsys_save['model_spec'] = model_spec
-            KpVsys_save['model_wav'] = model_wav
+        KpVsys_save['model_spec'] = model_FpFs_save
+        KpVsys_save['model_wav'] = model_wav
         KpVsys_save['model_wav'] = model_wav
         KpVsys_save['logL'] = logL_KpVsys_total
         KpVsys_save['cc'] = CC_KpVsys_total
@@ -1554,10 +1670,16 @@ class Model:
         KpVsys_save['vel_window'] = vel_window
         KpVsys_save['Vsys_range_windowed'] = Vsys_range[vel_window[0]:vel_window[1]]
         
+        
         if species_info is None:
             np.save(savedir + 'KpVsys_fast_no_model_reprocess_dict.npy', KpVsys_save)
         else:
-            np.save(savedir + 'KpVsys_fast_no_model_reprocess_dict_' + species_info + '.npy', KpVsys_save)
+            plt.figure()
+            plt.plot(KpVsys_save['model_wav'], KpVsys_save['model_spec'])
+            plt.xlabel('Wavelength [nm]')
+            plt.ylabel('Fp/Fs')
+            plt.savefig(savedir + 'model_without_' + species_info + '.png', format = 'png', dpi = 300)
+            np.save(savedir + 'KpVsys_fast_no_model_reprocess_dict' + '_without_' + species_info + '.npy', KpVsys_save)
         
         ####### Plot and save 
         subplot_num = 2
@@ -1584,18 +1706,23 @@ class Model:
 
         if theta_fit_dd is not None:
             for ip in [0,1]:
-                axx[ip].vlines(x=theta_fit_dd['Vsys'][ind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][ind]-5., color='k', linestyle='dashed')
-                axx[ip].vlines(x=theta_fit_dd['Vsys'][ind], ymin=theta_fit_dd['Kp'][ind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
+                # axx[ip].vlines(x=theta_fit_dd['Vsys'][postind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][postind]-5., color='k', linestyle='dashed')
+                # axx[ip].vlines(x=theta_fit_dd['Vsys'][postind], ymin=theta_fit_dd['Kp'][postind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
 
-                axx[ip].hlines(y=theta_fit_dd['Kp'][ind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][ind]-5., color='k', linestyle='dashed')
-                axx[ip].hlines(y=theta_fit_dd['Kp'][ind], xmin=theta_fit_dd['Vsys'][ind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
+                # axx[ip].hlines(y=theta_fit_dd['Kp'][postind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][postind]-5., color='k', linestyle='dashed')
+                # axx[ip].hlines(y=theta_fit_dd['Kp'][postind], xmin=theta_fit_dd['Vsys'][postind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
+                axx[ip].axvline(x=theta_fit_dd['Vsys'][postind], color='w', linestyle='dashed')
+                axx[ip].axhline(y=theta_fit_dd['Kp'][postind], color='w', linestyle='dashed')
         else:
             for ip in [0,1]:
-                axx[ip].vlines(x=self.Vsys_pred, ymin=KpVsys_save['Kp_range'][0], ymax=self.Kp_pred-5., color='w', linestyle='dashed')
-                axx[ip].vlines(x=self.Vsys_pred, ymin=self.Kp_pred+5., ymax=KpVsys_save['Kp_range'][-1], color='w', linestyle='dashed')
+                axx[ip].axvline(x=self.Vsys_pred, color='w', linestyle='dashed')
+                axx[ip].axhline(y=self.Kp_pred, color='w', linestyle='dashed')
+                # axx[ip].vlines(x=self.Vsys_pred, ymin=KpVsys_save['Kp_range'][0], ymax=self.Kp_pred-5., color='w', linestyle='dashed')
+                # axx[ip].vlines(x=self.Vsys_pred, ymin=self.Kp_pred+5., ymax=KpVsys_save['Kp_range'][-1], color='w', linestyle='dashed')
 
-                axx[ip].hlines(y=self.Kp_pred, xmin=KpVsys_save['Vsys_range_windowed'][0], xmax=self.Vsys_pred-5., color='w', linestyle='dashed')
-                axx[ip].hlines(y=self.Kp_pred, xmin=self.Vsys_pred+5., xmax=KpVsys_save['Vsys_range_windowed'][-1], color='w', linestyle='dashed')
+                # axx[ip].hlines(y=self.Kp_pred, xmin=KpVsys_save['Vsys_range_windowed'][0], xmax=self.Vsys_pred-5., color='w', linestyle='dashed')
+                # axx[ip].hlines(y=self.Kp_pred, xmin=self.Vsys_pred+5., xmax=KpVsys_save['Vsys_range_windowed'][-1], color='w', linestyle='dashed')
+                
 
             
 
@@ -1607,7 +1734,7 @@ class Model:
         if species_info is None:
             plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess.png', format='png', dpi=300, bbox_inches='tight')
         else:
-            plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess' + species_info + '.png', format='png', dpi=300, bbox_inches='tight')
+            plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess' + '_without_' + species_info + '.png', format='png', dpi=300, bbox_inches='tight')
 
                     
     ##############################################################################################################
@@ -1640,7 +1767,7 @@ class Model:
             if species_info is None:
                 KpVsys_save = np.load(savedir + 'KpVsys_dict_' + posterior + '.npy', allow_pickle = True).item()
             else:
-                KpVsys_save = np.load(savedir + 'KpVsys_dict_' + posterior + '_' + species_info + '.npy', allow_pickle = True).item()
+                KpVsys_save = np.load(savedir + 'KpVsys_dict_' + posterior + '_without_' + species_info + '.npy', allow_pickle = True).item()
         
         datelist = list(KpVsys_save['all_dates']['logL'].keys())
         print(datelist)
@@ -1648,11 +1775,11 @@ class Model:
         if theta_fit_dd is not None:
         ## Define the index of the theta_fit_dd to use depending on if you are doing the computation for median, +1sigma, or -1sigma values of the posterior. 
             if posterior == 'median':
-                ind = 0
+                postind = 0
             elif posterior == '-1sigma':
-                ind = 1
+                postind = 1
             elif posterior == '+1sigma':
-                ind = 2
+                postind = 2
         ############### Plot and save the individual date cc matrices first ##############
         for mk in ['cc', 'logL','logL_sigma']:
 
@@ -1680,15 +1807,15 @@ class Model:
                                             setxlabel=True, plot_type = plot_type)
                 fig.colorbar(hnd1, ax=axx[dd])
                 if theta_fit_dd is not None:
-                    axx[dd].vlines(x=theta_fit_dd['Vsys'][ind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][ind]-5., color='k', linestyle='dashed')
-                    axx[dd].vlines(x=theta_fit_dd['Vsys'][ind], ymin=theta_fit_dd['Kp'][ind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
+                    axx[dd].vlines(x=theta_fit_dd['Vsys'][postind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][postind]-5., color='k', linestyle='dashed')
+                    axx[dd].vlines(x=theta_fit_dd['Vsys'][postind], ymin=theta_fit_dd['Kp'][postind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
 
-                    axx[dd].hlines(y=theta_fit_dd['Kp'][ind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][ind]-5., color='k', linestyle='dashed')
-                    axx[dd].hlines(y=theta_fit_dd['Kp'][ind], xmin=theta_fit_dd['Vsys'][ind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
+                    axx[dd].hlines(y=theta_fit_dd['Kp'][postind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][postind]-5., color='k', linestyle='dashed')
+                    axx[dd].hlines(y=theta_fit_dd['Kp'][postind], xmin=theta_fit_dd['Vsys'][postind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
 
                 # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
                 axx[dd].set_ylabel(r'K$_{P}$ [km/s]')
-                axx[dd].set_xlabel(r'V$_{rest}$ [km/s]')
+                axx[dd].set_xlabel(r'V$_{sys}$ [km/s]')
 
                 # axx[dd].set_xlim(xmin = velocity_shifts_win[0], xmax = velocity_shifts_win[-1])
                 # axx[dd].set_ylim(ymin=Kp_range[0], ymax=Kp_range[-1])
@@ -1696,7 +1823,7 @@ class Model:
             if species_info is None:
                 plt.savefig(savedir + 'all_dates_' + mk + '_'+posterior+'_.pdf', format='pdf', dpi=300, bbox_inches='tight')
             else:
-                plt.savefig(savedir + 'all_dates_' + mk + '_'+posterior+'_'+species_info+'_.pdf', format='pdf', dpi=300, bbox_inches='tight')
+                plt.savefig(savedir + 'all_dates_' + mk + '_'+posterior+'_without_'+species_info+'_.pdf', format='pdf', dpi=300, bbox_inches='tight')
 
         ############### Plot the total cc matrices ##############
         for mk in ['cc', 'logL','logL_sigma']:
@@ -1721,11 +1848,11 @@ class Model:
 
             if theta_fit_dd is not None:
             
-                axx.vlines(x=theta_fit_dd['Vsys'][ind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][ind]-5., color='k', linestyle='dashed')
-                axx.vlines(x=theta_fit_dd['Vsys'][ind], ymin=theta_fit_dd['Kp'][ind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
+                axx.vlines(x=theta_fit_dd['Vsys'][postind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][postind]-5., color='k', linestyle='dashed')
+                axx.vlines(x=theta_fit_dd['Vsys'][postind], ymin=theta_fit_dd['Kp'][postind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
 
-                axx.hlines(y=theta_fit_dd['Kp'][ind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][ind]-5., color='k', linestyle='dashed')
-                axx.hlines(y=theta_fit_dd['Kp'][ind], xmin=theta_fit_dd['Vsys'][ind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
+                axx.hlines(y=theta_fit_dd['Kp'][postind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][postind]-5., color='k', linestyle='dashed')
+                axx.hlines(y=theta_fit_dd['Kp'][postind], xmin=theta_fit_dd['Vsys'][postind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
 
 
             # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
@@ -1738,6 +1865,6 @@ class Model:
             if species_info is None:
                 plt.savefig(savedir + 'total_'+ mk + '_'+ posterior+ '_.pdf', format='pdf', dpi=300, bbox_inches='tight')
             else:
-                plt.savefig(savedir + 'total_'+ mk + '_'+ posterior+ '_' + species_info + '_.pdf', format='pdf', dpi=300, bbox_inches='tight')
+                plt.savefig(savedir + 'total_'+ mk + '_'+ posterior+ '_without_' + species_info + '_.pdf', format='pdf', dpi=300, bbox_inches='tight')
             
         plt.close('all')

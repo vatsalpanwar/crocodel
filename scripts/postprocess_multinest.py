@@ -30,9 +30,9 @@ import distinctipy
 ##############################################################################
 ### Define species you want to compute the individual cross-correlation maps for 
 ##############################################################################
-SP_INDIV = ['co', 'h2o']
-colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
-SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
+# SP_INDIV = ['co', 'h2o']
+# colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
+# SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
 
 # SP_INDIV = ['logZ_planet', 'C_to_O'] #['co', 'h2o'] # , 'oh', 'fe', 'tio']
 # SP_COLORS = {
@@ -95,7 +95,8 @@ datadetrend_dd = np.load(args['workdir'] + 'datadetrend_dd.npy', allow_pickle = 
 ##############################################################################
 INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments
 # INST_GLOBAL = 'crires' ## could change this when running for multiple instruments
-posterior_type_list = ['median'] # ['MAP'] # ['median'] # , '-1sigma', '+1sigma']
+# posterior_type_list = ['median'] # ['MAP'] # ['median'] # , '-1sigma', '+1sigma']
+posterior_type = 'median'
 
 dates = list(config_dd['data'][INST_GLOBAL]['dates'].keys())
 order_inds = planet_data.get_use_order_inds(inst = INST_GLOBAL, date = dates[0])
@@ -104,9 +105,9 @@ datadetrend_dd_global = datadetrend_dd
 planet_model_dict_global = planet_model_dict
 Vsys_range_bound, Vsys_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_step']
 Vsys_range_bound_trail = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Vsys_range_trail']
+vel_window = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['vel_window']
 
 Kp_range_bound, Kp_step = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Kp_range'], config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['Kp_step']
-
 Vsys_range = np.arange(Vsys_range_bound[0], Vsys_range_bound[1], Vsys_step)
 Vsys_range_trail = np.arange(Vsys_range_bound_trail[0], Vsys_range_bound_trail[1], Vsys_step)
 Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
@@ -143,89 +144,87 @@ fit_param_dict = {}
 for i, pn in enumerate(free_param_dict.keys()):
     fit_param_dict[pn] = [ marginals[i]['median'], marginals[i]['1sigma'][0], marginals[i]['1sigma'][1], MAP_param_vector[i] ]
 
-##############################################################################
-### Compute and save the best fit model
-##############################################################################
+    
 ## All species 
-wav_nm, spec, spec_conv = [], [], []
+# wav_nm, spec, spec_conv = [], [], []
 
-model_ind_dd = {}
-model_ind_dd['all_species'] = {}
-## Individual species 
-for spnm in SP_INDIV:
-    model_ind_dd[spnm] = {}
-    model_ind_dd[spnm]['wav'], model_ind_dd[spnm]['spec'], model_ind_dd[spnm]['spec_conv'] = [], [], []
-species_list = planet_model_dict_global[INST_GLOBAL].species
+# model_ind_dd = {}
+# model_ind_dd['all_species'] = {}
+# ## Individual species 
+# for spnm in SP_INDIV:
+#     model_ind_dd[spnm] = {}
+#     model_ind_dd[spnm]['wav'], model_ind_dd[spnm]['spec'], model_ind_dd[spnm]['spec_conv'] = [], [], []
+# species_list = planet_model_dict_global[INST_GLOBAL].species
 
-for posterior_type in posterior_type_list:
-    print('Computing the model spectrum for : ', posterior_type)
-    if posterior_type == 'median':
-        ind = 0
-    elif posterior_type == '-1sigma':
-        ind = 1
-    elif posterior_type == '+1sigma':
-        ind = 2
-    elif posterior_type == 'MAP':
-        ind = 3
-    for pname in fit_param_dict.keys():
-        if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
-            setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fit_param_dict[pname][ind])
-        else:
-            setattr(planet_model_dict_global[INST_GLOBAL], pname, fit_param_dict[pname][ind])
+# for posterior_type in posterior_type_list:
+#     print('Computing the model spectrum for : ', posterior_type)
+#     if posterior_type == 'median':
+#         ind = 0
+#     elif posterior_type == '-1sigma':
+#         ind = 1
+#     elif posterior_type == '+1sigma':
+#         ind = 2
+#     elif posterior_type == 'MAP':
+#         ind = 3
+#     for pname in fit_param_dict.keys():
+#         if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+#             setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fit_param_dict[pname][ind])
+#         else:
+#             setattr(planet_model_dict_global[INST_GLOBAL], pname, fit_param_dict[pname][ind])
             
-    wav_nm_, spec_ = planet_model_dict_global[INST_GLOBAL].get_spectra()
-    spec_conv_= planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=spec_)
+#     wav_nm_, spec_ = planet_model_dict_global[INST_GLOBAL].get_spectra()
+#     spec_conv_= planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=spec_)
     
-    wav_nm.append(wav_nm_), spec.append(spec_), spec_conv.append(spec_conv_)
+#     wav_nm.append(wav_nm_), spec.append(spec_), spec_conv.append(spec_conv_)
     
-    ## Computing models for individual species 
-    for spnm in SP_INDIV:
-        ## Calculating the model with only contributions from this species 
-        # print("Computing forward model for only ", spnm)
-        # print("Setting abundance of ", spnm, "to ", str(10.**fit_param_dict[spnm][ind]) )
-        setattr(planet_model_dict_global[INST_GLOBAL], spnm, 10.**fit_param_dict[spnm][ind])
+#     ## Computing models for individual species 
+#     for spnm in SP_INDIV:
+#         ## Calculating the model with only contributions from this species 
+#         # print("Computing forward model for only ", spnm)
+#         # print("Setting abundance of ", spnm, "to ", str(10.**fit_param_dict[spnm][ind]) )
+#         setattr(planet_model_dict_global[INST_GLOBAL], spnm, 10.**fit_param_dict[spnm][ind])
         
-        ## Set all other species to very low abundances 
-        for spnm_ex in SP_INDIV:
-            # print("Excluding abundance of ", spnm, "by setting its abundance to ", str(10.**fit_param_dict[spnm][ind]) )
-            if spnm_ex != spnm:
-                setattr(planet_model_dict_global[INST_GLOBAL], spnm_ex, 10.**-30.)
+#         ## Set all other species to very low abundances 
+#         for spnm_ex in SP_INDIV:
+#             # print("Excluding abundance of ", spnm, "by setting its abundance to ", str(10.**fit_param_dict[spnm][ind]) )
+#             if spnm_ex != spnm:
+#                 setattr(planet_model_dict_global[INST_GLOBAL], spnm_ex, 10.**-30.)
         
-        wav_sp, spec_sp = planet_model_dict_global[INST_GLOBAL].get_spectra()
-        spec_conv_sp = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=spec_sp)
+#         wav_sp, spec_sp = planet_model_dict_global[INST_GLOBAL].get_spectra()
+#         spec_conv_sp = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=spec_sp)
         
-        model_ind_dd[spnm]['wav'].append(wav_sp)
-        model_ind_dd[spnm]['spec'].append(spec_sp)
-        model_ind_dd[spnm]['spec_conv'].append(spec_conv_sp)
+#         model_ind_dd[spnm]['wav'].append(wav_sp)
+#         model_ind_dd[spnm]['spec'].append(spec_sp)
+#         model_ind_dd[spnm]['spec_conv'].append(spec_conv_sp)
             
-wav_nm, spec, spec_conv = np.array(wav_nm), np.array(spec), np.array(spec_conv)
-model_ind_dd['all_species']['wav'], model_ind_dd['all_species']['spec'], model_ind_dd['all_species']['spec_conv'] = np.array(wav_nm)[0], np.array(spec)[0], np.array(spec_conv)[0]
+# wav_nm, spec, spec_conv = np.array(wav_nm), np.array(spec), np.array(spec_conv)
+# model_ind_dd['all_species']['wav'], model_ind_dd['all_species']['spec'], model_ind_dd['all_species']['spec_conv'] = np.array(wav_nm)[0], np.array(spec)[0], np.array(spec_conv)[0]
 
-for spnm in SP_INDIV:
-    model_ind_dd[spnm]['wav'], model_ind_dd[spnm]['spec'], model_ind_dd[spnm]['spec_conv'] = np.array(model_ind_dd[spnm]['wav']), np.array(model_ind_dd[spnm]['spec']), np.array(model_ind_dd[spnm]['spec_conv'])
+# for spnm in SP_INDIV:
+#     model_ind_dd[spnm]['wav'], model_ind_dd[spnm]['spec'], model_ind_dd[spnm]['spec_conv'] = np.array(model_ind_dd[spnm]['wav']), np.array(model_ind_dd[spnm]['spec']), np.array(model_ind_dd[spnm]['spec_conv'])
 
 
-plt.figure(figsize = (12,5))
-plt.plot(wav_nm[0],spec[0], color = 'xkcd:green', label = 'Total', linewidth = 0.7 ) ## The index 0 is just referring to the posterior type here.
+# plt.figure(figsize = (12,5))
+# plt.plot(wav_nm[0],spec[0], color = 'xkcd:green', label = 'Total', linewidth = 0.7 ) ## The index 0 is just referring to the posterior type here.
 
-for ii, spnm in enumerate(SP_INDIV):
-    plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
+# for ii, spnm in enumerate(SP_INDIV):
+#     plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
     
-plt.xlabel('Wavelength [nm]')
-plt.ylabel('Fp/Fs')
-plt.legend()
-plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
+# plt.xlabel('Wavelength [nm]')
+# plt.ylabel('Fp/Fs')
+# plt.legend()
+# plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
 
-np.save(savedir + 'forward_models.npy', model_ind_dd)
+# np.save(savedir + 'forward_models.npy', model_ind_dd)
 
-#### Plot only total model 
-plt.figure(figsize = (12,5))
-plt.plot(wav_nm[0],spec[0], color = 'xkcd:green', label = 'Total', linewidth = 0.7 ) ## The index 0 is just referring to the posterior type here.
+# #### Plot only total model 
+# plt.figure(figsize = (12,5))
+# plt.plot(wav_nm[0],spec[0], color = 'xkcd:green', label = 'Total', linewidth = 0.7 ) ## The index 0 is just referring to the posterior type here.
     
-plt.xlabel('Wavelength [nm]')
-plt.ylabel('Fp/Fs')
-plt.legend()
-plt.savefig(savedir + 'best_fit_model_only_total.pdf', format='pdf', bbox_inches='tight')
+# plt.xlabel('Wavelength [nm]')
+# plt.ylabel('Fp/Fs')
+# plt.legend()
+# plt.savefig(savedir + 'best_fit_model_only_total.pdf', format='pdf', bbox_inches='tight')
 
 
 ##############################################################################
@@ -234,7 +233,7 @@ plt.savefig(savedir + 'best_fit_model_only_total.pdf', format='pdf', bbox_inches
 print('Computing the TP profile ...')
 temp_list, press_list = {}, {} 
 ## First do for the median 
-posterior_type = posterior_type_list[0] # 'median' or 'MAP' , DOING ONLY ONE AT A TIME FOR NOW! 
+# posterior_type = posterior_type_list[0] # 'median' or 'MAP' , DOING ONLY ONE AT A TIME FOR NOW! 
 if posterior_type == 'median':
     ind = 0
 elif posterior_type == '-1sigma':
@@ -385,6 +384,7 @@ print('Done!')
 ##############################################################################
 print('Computing abundances...')
 chain_inds = np.random.randint(0, len(chain_dd['Kp'])-1, 3000)
+
 abund_dict_test = planet_model_dict_global[INST_GLOBAL].abundances_dict
 abund_dict_save = {}
 abund_dict_save['press_median'] = tp_dict['press_median']
@@ -404,6 +404,11 @@ for indind, ind in enumerate(chain_inds):
     abund_dict = planet_model_dict_global[INST_GLOBAL].abundances_dict
     for sp in abund_dict.keys():
         abund_dict_save[sp]['samp'][indind,:] = abund_dict[sp]
+        
+##### Get the list of species 
+SP_INDIV = [x for x in abund_dict.keys() if x != 'press_median']
+colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.2)
+SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
 
 ### Compute the +-1 sigma bounds
 for sp in abund_dict.keys():
@@ -415,8 +420,8 @@ for sp in abund_dict.keys():
         abund_dict_save[sp]['abund_min_sig'][it] = a_min
 np.save(savedir + 'abund_dict.npy', abund_dict_save)
 print('Done! Plotting them now...')
-### Plot the abundances of each molecule 
-### Plot the abundances for each molecule 
+
+
 plt.figure()
 for i_sp, sp in enumerate(abund_dict_save.keys()):
     # if sp not in ['h2', 'he', 'press_median']:
@@ -433,12 +438,65 @@ plt.legend(fontsize = 8)
 plt.savefig(savedir + 'abundances.pdf', format='pdf', dpi=300, bbox_inches='tight')
 print('Done!')
 
+
+##############################################################################
+### Compute and save the total best fit model from ALL and individual species 
+##############################################################################
+model_ind_dd = {}
+model_ind_dd['all_species'] = {}
+#### Set parameters back to the median values from the posterior
+ind = 0 ## For median 
+for pname in fit_param_dict.keys():
+    if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+        setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fit_param_dict[pname][ind])
+    else:
+        setattr(planet_model_dict_global[INST_GLOBAL], pname, fit_param_dict[pname][ind])
+        
+if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+    
+    model_wav, model_Fp_orig = planet_model_dict_global[INST_GLOBAL].get_Fp_spectra()    
+    phoenix_model_lsf_broad = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=planet_model_dict_global[INST_GLOBAL].phoenix_model_flux)
+    ### Rotationally broaden the planetary spectrum 
+    model_Fp_orig_broadened, _ = planet_model_dict_global[INST_GLOBAL].rotation(vsini = planet_model_dict_global[INST_GLOBAL].vsini_planet, 
+                                                model_wav = model_wav, model_spec = model_Fp_orig)
+    
+    
+    model_Fp = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+    plt.figure(figsize = (12,5))
+    plt.plot(model_wav,
+            model_Fp, color = 'xkcd:green', linewidth = 0.5 ) 
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Fp')
+    plt.savefig(savedir + 'best_fit_model_only_Fp.pdf', format='pdf', bbox_inches='tight')
+
+    model_FpFs = model_Fp/phoenix_model_lsf_broad
+    model_ind_dd['all_species']['wav_nm'], model_ind_dd['all_species']['spec'] = model_wav, model_FpFs
+    
+else:
+    model_wav, model_spec_orig = planet_model_dict_global[INST_GLOBAL].get_spectra()
+    # Rotationally broaden the spectrum 
+    model_spec_orig_broadened, _ = planet_model_dict_global[INST_GLOBAL].rotation(vsini = planet_model_dict_global[INST_GLOBAL].vsini_planet, 
+                                    model_wav = model_wav, model_spec = model_spec_orig)   
+    # Convolve the model to the instrument resolution already
+    model_spec = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+    model_ind_dd['all_species']['wav_nm'], model_ind_dd['all_species']['spec'] = model_wav, model_spec
+
+np.save(savedir + 'model_spec_dict.npy', model_ind_dd)
+plt.figure(figsize = (12,5))
+plt.plot(model_ind_dd['all_species']['wav_nm'],
+         model_ind_dd['all_species']['spec'], color = 'xkcd:green', linewidth = 0.5 ) 
+    
+plt.xlabel('Wavelength [nm]')
+plt.ylabel('Fp/Fs')
+plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
+
+
 ##############################################################################
 ### Compute the contribution functions and then overplot them with the TP
 ##############################################################################
 contri_dict = {}
 contri_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
-contri_dict['wav_nm'] = wav_nm[0]
+contri_dict['wav_nm'] = model_ind_dd['all_species']['wav_nm']
 contri_dict['tau'] = tau
 contri_dict['P_array'] = P_array
 contri_dict['P_tau'] = P_tau
@@ -449,7 +507,7 @@ np.save(savedir + 'contri_func_dict.npy', contri_dict)
 
 ##### First plot the 2D map of the optical depth 
 plt.figure(figsize = (16,10))
-plt.pcolormesh(wav_nm[0], P_array, np.log10(tau) )
+plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array, np.log10(tau) )
 plt.xlabel('Wavelength [nm]')
 plt.ylabel('Pressure [bar]')
 plt.yscale('log')
@@ -462,7 +520,7 @@ plt.savefig(savedir + 'tau_map.png', dpi = 300, format = 'png', bbox_inches = 't
 # import pdb
 # pdb.set_trace()
 plt.figure(figsize = (16,10))
-plt.pcolormesh(wav_nm[0], P_array[1:], contri_func.T )
+plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array[1:], contri_func.T )
 plt.xlabel('Wavelength [nm]')
 plt.ylabel('Pressure [bar]')
 plt.yscale('log')
@@ -489,7 +547,7 @@ plt.savefig(savedir + 'contribution_function_hist.pdf', dpi = 300, format = 'pdf
 
 ##### Plot the tau = 2./3. pressure points across the wavelength range 
 plt.figure(figsize = (12,10))
-plt.plot( wav_nm[0], P_tau, color = 'k' )
+plt.plot( model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k' )
 plt.yscale('log')
 plt.ylim(max(tp_dict['press_median']),min(tp_dict['press_median']))
 plt.xlabel('Wavelength [nm]')
@@ -524,39 +582,52 @@ plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
 ax2 = plt.gca().twiny()
-ax2.plot(wav_nm[0], P_tau, color = 'k', alpha = 0.6)
+ax2.plot(model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k', alpha = 0.6)
 ax2.set_xlabel('Wavelength [nm]')
 plt.savefig(savedir + 'TP_profile_tau_2by3_pressures.pdf', format='pdf', dpi=300, bbox_inches='tight')
 
-exit()
+# exit()
 
 
 ##############################################################################
 ### Compute the 2D KpVsys maps and also plot them for all species 
 ##############################################################################
-# print('All species: ')
-for posterior_type in posterior_type_list:
-    print('Computing: ', posterior_type)
-    KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir)
-    print('Plotting: ', posterior_type)
-    planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = posterior_type, theta_fit_dd = fit_param_dict, savedir = KpVsys_savedir)
+print('All species: ')
+# for posterior_type in posterior_type_list:
+# print('Computing: ', posterior_type)
+print('Using fast method first ...')
+planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = fit_param_dict, 
+                                    posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+            Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window)
+
+print('Using slow method next ...')   
+KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                            Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir)
+
+
+planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = posterior_type, theta_fit_dd = fit_param_dict, savedir = KpVsys_savedir)
 
 ##############################################################################
-### Compute the 2D KpVsys maps and also plot them for all species 
+### Compute the 2D KpVsys maps and also plot them for individual species
 ##############################################################################
 for spnm in SP_INDIV:
-    print('Only ', spnm)
+    print('Excluding:  ', spnm)
+    # spnm_exclude = []
+    # for spnm_ex in SP_INDIV:
+    #     if spnm_ex != spnm:
+    #         spnm_exclude.append(spnm_ex)
     
-    spnm_exclude = []
-    for spnm_ex in SP_INDIV:
-        if spnm_ex != spnm:
-            spnm_exclude.append(spnm_ex)
-        
+    print('Using fast method first ...')
+    planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = fit_param_dict, 
+                                    posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+            Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window,
+            exclude_species = [spnm], species_info = spnm)
+    
+    print('Using slow method next ...')
     KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = 'median', datadetrend_dd = datadetrend_dd, 
                                                                               order_inds = order_inds, 
                                 Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir, 
-                                exclude_species = spnm_exclude, species_info = spnm)
+                                exclude_species = [spnm], species_info = spnm)
     planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = 'median', 
                                                            theta_fit_dd = fit_param_dict, savedir = KpVsys_savedir, species_info = spnm)
 

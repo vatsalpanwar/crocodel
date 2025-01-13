@@ -49,12 +49,46 @@ Take the path to the croc_config.yaml file as the input
 ################################################################
 ################################################################
 parser = argparse.ArgumentParser(description='Read the user inputs.')
+parser.add_argument('-wdir','--work_dir', help = "Path to the working directory.",
+                    type=str, required=False)
 parser.add_argument('-cfg','--config_file_path', help = "Path to the croc_config.yaml.",
-                    type=str, required=True)
+                    type=str, required=False)
+
 args = vars(parser.parse_args())
-config_file_path = args['config_file_path']
-with open(config_file_path) as f:
-    config_dd = yaml.load(f,Loader=yaml.FullLoader)
+
+if args['config_file_path'] is not None:
+    config_file_path = args['config_file_path']
+    with open(config_file_path) as f:
+        config_dd = yaml.load(f,Loader=yaml.FullLoader)
+
+    infostring = config_dd['infostring']['info'] + '_N_PCA-' + str(config_dd['infostring']['N_PCA_info']) + '_' + d1
+    savedir = config_dd['workdir']['results'] + infostring + '/'
+
+    """Create the directory to save results."""
+    try:
+        os.makedirs(savedir)
+    except OSError:
+        savedir = savedir
+
+    print('Saving files in directory: ', savedir)
+
+    ### Save the config file in the savedir 
+    copyfile(config_file_path, savedir + 'croc_config.yaml')
+    outputfiles_basename = savedir + infostring + 'multinest_output_'
+    resume = False
+
+elif args['work_dir'] is not None:
+    savedir = args['work_dir']
+    config_file_path = savedir + 'croc_config.yaml'
+    
+    with open(config_file_path) as f:
+        config_dd = yaml.load(f,Loader=yaml.FullLoader)
+    
+    resume = True
+    directory_path = os.path.dirname(savedir)
+    # Split the directory path into a list of components
+    infostring = directory_path.split(os.path.sep)[-1]
+    outputfiles_basename = savedir + infostring + 'multinest_output_'
 
 ################################################################
 ################################################################
@@ -63,19 +97,7 @@ Extract the information string (infostring) which will be used in names of all r
 """
 ################################################################
 ################################################################
-infostring = config_dd['infostring']['info'] + '_N_PCA-' + str(config_dd['infostring']['N_PCA_info']) + '_' + d1
-savedir = config_dd['workdir']['results'] + infostring + '/'
 
-"""Create the directory to save results."""
-try:
-    os.makedirs(savedir)
-except OSError:
-    savedir = savedir
-
-print('Saving files in directory: ', savedir)
-
-### Save the config file in the savedir 
-copyfile(config_file_path, savedir + 'croc_config.yaml')
 
 ################################################################
 ################################################################
@@ -249,7 +271,15 @@ plt.ylabel('Pressure [bar]')
 plt.savefig(savedir + 'init_TP_profile.pdf', format='pdf', dpi=300, bbox_inches='tight')
 
 init_model_dd = {}
-wav, spec = planet_model_dict_global[INST_GLOBAL].get_spectra()
+
+
+# wav, spec = planet_model_dict_global[INST_GLOBAL].get_spectra()
+if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+    wav, model_Fp_orig = planet_model_dict_global[INST_GLOBAL].get_Fp_spectra()
+    spec = model_Fp_orig/planet_model_dict_global[INST_GLOBAL].phoenix_model_flux
+else:
+    wav, spec = planet_model_dict_global[INST_GLOBAL].get_spectra()        
+
 init_model_dd['wav'], init_model_dd['spec'] = wav, spec
 init_model_dd['spec_conv'] = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=spec)
         
@@ -318,8 +348,9 @@ parameters = list(free_param_dict.keys())
 globalStart = time.time()
 pymultinest.run(log_likelihood_multinest, 
                 prior_transform, ndim, 
-                outputfiles_basename=savedir + infostring + 'multinest_output_', 
-                resume = False, verbose = True, n_live_points = N_live_points, 
+                outputfiles_basename = outputfiles_basename, ## savedir + infostring + 'multinest_output_', 
+                resume = resume, 
+                verbose = True, n_live_points = N_live_points, 
                 multimodal = False, importance_nested_sampling = False)
 json.dump(parameters, open(savedir + infostring + 'multinest_output_' + 'params.json', 'w')) # save parameter names
 globalEnd = time.time()

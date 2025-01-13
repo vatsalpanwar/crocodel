@@ -2,7 +2,7 @@ infostring:
   # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
   # info: 'TEST_INTERP'
   # info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
-  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_free_chem_H2O_dissociation_'
+  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_free_chem_H2O_dissociation_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -134,11 +134,11 @@ data: # Each high level key under data should be the name of the instrument.
 
       }
     cross_correlation_params:
-      Vsys_range: [10., 60.]
-      Kp_range: [160., 260.]
+      Vsys_range: [0., 80.]
+      Kp_range: [140., 240.]
 
-      Vsys_range_trail: [-250., 250.]
-      vel_window: [200,-200]
+      Vsys_range_trail: [-350.,350.]
+      vel_window: [350,-270]
       Vsys_step: 1.
       Kp_step: 1.
 
@@ -152,15 +152,15 @@ model:
   
   
   ######## For WASP-122b parameters Gaia
-  R_star: 1.56 # in terms of R_sun 
-  T_eff: 5622. # K 
+  R_star: 1.368 # in terms of R_sun 
+  T_eff: 5802. # K 
   Vsys: 34.62 # In km/s. For WASP-122b the value is from Rodriguez et al. 2016 (Table 1, KELT-14b aka WASP-122b).
   vsini: 7.7 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
-  vsini_planet: 5.1 ## In km/s
+  vsini_planet: 4.54 ## In km/s
   R_planet: 1.52 # In Jupiter radius
-  log_g: 3.1082
+  log_g: 3.107
   P_ref: 0.0 # in log(bar)
   P_min: 1.0e-6 # in bars, 1 bar is 1e5 Pa,  so in Pa this is 1.0e-1
   P_max: 1.0e+2 # in bars, so in Pa this is 1.0e7
@@ -174,8 +174,9 @@ model:
   Kp: 188.055
 
   use_stellar_phoenix: True
-  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+  stellar_spectrum_smooth_length: 200
 
   # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # # From Sid'e email and looking at set_T function, 
@@ -243,13 +244,22 @@ model:
   abundances:
     co: -4.5
     h2o: -4.5
-    oh: -4
-    fe: -4.3
-    ti: -4.
-    si: -4.
-    ca: -4.3
-    mg: -4.
-    v: -4.
+    oh : -4.5
+    h2s: -4.5
+    tio: -4.5
+    feh: -4.5
+    crh: -4.5
+    vo: -4.5
+    alo: -4.5
+    mgo: -4.5
+
+    fe: -4.5
+    ti: -4.5
+    ca: -4.5
+    al: -4.5
+    cr: -4.5
+    v: -4.5
+   
     h_minus: -4.
     he: -0.77
   
@@ -261,12 +271,24 @@ model:
     nh3: 'H3N1'
     co2: 'C1O2'
     hcn: 'C1H1N1_1'
+
+    h2s: 'H2S1'
+    tio: 'O1Ti1'
+    feh: 'Fe1H1'
+    crh: 'Cr1H1'
+    vo: 'O1V1'
+    alo: 'Al1O1'
+    mgo: 'Mg1O1'
+
     fe: 'Fe'
     ti: 'Ti'
     si: 'Si'
     ca: 'Ca'
     mg: 'Mg'
     v: 'V'
+    al: 'Al'
+    cr: 'Cr'
+
     he: 'He'
 
   cl_P: 0.0 # log(cloud_pressure) in bars 
@@ -388,7 +410,7 @@ model:
     ### ### ### ### ### ### ### ### ###
     ### Abundances 
     ### ### ### ### ### ### ### ### ###
-    
+
     co:
       fix_test: -5.04
       prior: Uniform
@@ -404,6 +426,41 @@ model:
       prior: Uniform
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
     
+    h2s:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    tio:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    feh:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    crh:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    vo:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    alo:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    mgo:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
     fe:
       fix_test: -10.2
       prior: Uniform
@@ -414,17 +471,17 @@ model:
       prior: Uniform
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
 
-    si:
-      fix_test: -10.2
-      prior: Uniform
-      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
     ca:
       fix_test: -10.2
       prior: Uniform
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
 
-    mg:
+    al:
+      fix_test: -10.2
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+
+    cr:
       fix_test: -10.2
       prior: Uniform
       bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1

@@ -1,6 +1,6 @@
 infostring: 
   # info: 'IGRINS_WASP-122b_FAST_FIX_MODEL_POKAZATEL_Krishna_RCTE_logZ_-2_'
-  info: 'IGRINS_WASP-122b_norm_data-NO_SLOW_FIX_MODEL_PHOENIX_POKAZATEL_Krishna_RCTE_logZ_0_'
+  info: 'IGRINS_WASP-122b_logZ_0_MAIN_Rodriguez_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -150,15 +150,15 @@ model:
   
   
   ######## For WASP-122b parameters Gaia
-  R_star: 1.56 # in terms of R_sun 
-  T_eff: 5622. # K 
+  R_star: 1.368 # in terms of R_sun 
+  T_eff: 5802. # K 
   Vsys: 34.62 # In km/s. For WASP-122b the value is from Rodriguez et al. 2016 (Table 1, KELT-14b aka WASP-122b).
   vsini: 7.7 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
-  vsini_planet: 5.1 ## In km/s
+  vsini_planet: 4.54 ## In km/s
   R_planet: 1.52 # In Jupiter radius
-  log_g: 3.1082
+  log_g: 3.107
   P_ref: 0.0 # in log(bar)
   P_min: 1.0e-6 # in bars, 1 bar is 1e5 Pa,  so in Pa this is 1.0e-1
   P_max: 1.0e+2 # in bars, so in Pa this is 1.0e7
@@ -172,7 +172,7 @@ model:
   Kp: 188.055
 
   use_stellar_phoenix: True
-  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05600-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
 
   ####### ####### ####### ####### ####### ####### ####### ####### ####### ####### 
@@ -180,7 +180,7 @@ model:
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
   fix_model_info:
    fix_model: True
-   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_12-12-2024T12-09-18/'
+   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output_Rodriguez_params_POKAZATEL_Krishna_RCTE_logZ_0_20-12-2024T14-11-02/'
   #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_06-12-2024T14-50-02/'
   #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_-2_03-12-2024T13-20-43/'
   ### the above directory should contain abund_dict.npy, spec_dict.npy, and TP_dict.npy

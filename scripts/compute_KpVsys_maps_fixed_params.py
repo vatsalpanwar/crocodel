@@ -237,7 +237,7 @@ if fix_model:
     abund_dict = np.load(fix_model_info['fix_model_path'] + 'abund_dict.npy', allow_pickle = True).item()
     
     SP_INDIV = [x for x in abund_dict.keys() if x != 'press_median']
-    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.7)
+    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.2)
     SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
         
 else:
@@ -339,9 +339,14 @@ else:
 ######################################################################################
 
 print('Trail matrix has been computed before already.')
-print('Computing the trail matrix, by default with model reprocessing ...')
+print('Computing the trail matrix, both without and with model reprocessing ...')
 if fix_model:
     fixed_model_wav, fixed_model_spec =  wav_nm, spec
+    planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
+                                                order_inds = order_inds, 
+                        Vsys_range = Vsys_range_trail, savedir = savedir, 
+                        fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec, plot = False )
+    
     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
                                                     order_inds = order_inds, 
                             Vsys_range = Vsys_range_trail, savedir = savedir, 
@@ -359,7 +364,6 @@ else:
                                                     order_inds = order_inds, 
                             Vsys_range = Vsys_range_trail, savedir = savedir)
     print('Done!')
-
 
 
 ##############################################################################
@@ -380,8 +384,13 @@ if not fix_model:
         else:
             setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
 
-    print('Computing KpVsys maps...')
+    print('Computing KpVsys maps ...')
     if KpVsys_method == 'slow':
+        print('Using fast method as test first ...')
+        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                        Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+        
         print('Using slow method ...')
         KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
                                                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
@@ -397,6 +406,11 @@ if not fix_model:
 else:
     print('Computing KpVsys maps for fixed model ...')
     if KpVsys_method == 'slow':
+        print('Using fast method as test first ...')
+        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                        Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, fixed_model_wav = wav_nm, fixed_model_spec = spec)
+        
         print('Using slow method ...')
         KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
                                                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
