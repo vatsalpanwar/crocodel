@@ -142,9 +142,9 @@ for i, pn in enumerate(free_param_dict.keys()):
 ############## Construct the fit parameter dictionary with median and ±1 sigma ################
 fit_param_dict = {}
 for i, pn in enumerate(free_param_dict.keys()):
-    fit_param_dict[pn] = [ marginals[i]['median'], marginals[i]['1sigma'][0], marginals[i]['1sigma'][1], MAP_param_vector[i] ]
+    fit_param_dict[pn] = [ marginals[i]['median'], marginals[i]['1sigma'][0], marginals[i]['1sigma'][1], MAP_param_vector[i] ]  ### index 0 is -1sigma, and index 1 is +1sigma
+np.save(savedir + 'fit_param_dict_models.npy', fit_param_dict)
 
-    
 ## All species 
 # wav_nm, spec, spec_conv = [], [], []
 
@@ -600,6 +600,7 @@ planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_r
                                     posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window)
 
+exit()
 print('Using slow method next ...')   
 KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                             Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir)

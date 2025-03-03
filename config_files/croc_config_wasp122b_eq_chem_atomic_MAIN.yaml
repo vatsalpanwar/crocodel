@@ -2,7 +2,7 @@ infostring:
   # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
   # info: 'TEST_INTERP'
   # info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
-  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_eq_chem_MadhusudhanSeager_H_minus_proper_'
+  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_eq_chem_atomic_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -176,7 +176,7 @@ model:
   use_stellar_phoenix: True
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
-  stellar_spectrum_smooth_length: 200
+
   # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # # From Sid'e email and looking at set_T function, 
   # # # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! and in log P(Pa)
@@ -195,41 +195,48 @@ model:
   # log_kappa_IR: 0.
   # f_global: 1. # Setting this to one let's it be folded into T_eq
   
-  TP_type: Madhusudhan_Seager # In future allow for custom, Guillot, or other prescriptions.
+  # TP_type: Madhusudhan_Seager # In future allow for custom, Guillot, or other prescriptions.
   # ###### Initial params here set from a fit of the TP to Mike's RCTE cold trap TP 
   # ### Make sure that P1 < P3
-  T_set: 2250.
-  alpha1: 0.6 
-  alpha2: 0.168 
-  log_P1: -2.3
-  log_P2: -0.98 # Setting this to one let's it be folded into T_eq
-  log_P3: 0.37
+  # T_set: 2250.
+  # alpha1: 0.9 
+  # alpha2: 0.098 
+  # log_P1: -4.2
+  # log_P2: -2.7 # Setting this to one let's it be folded into T_eq
+  # log_P3: -1.84
   
-  # TP_type: Bezier_4_nodes
-  # ### All pressure inputs should be in bars ### 
-  # #### !!!!!!!!!! In order of increasing pressures !!!!!!!  
-  # ####(or going from top to down in altitude) #### 
-  # ##### !!!!  P3,P2,P1,P0 !!!! (P3<P2<P1<P0) 
-  # ##### More akin to how Sid does it for Linear, but reverse of the Madhusudhan_Seager profile implementation here.  
-  # T0: 3158.
-  # log_P0: 2.
-  # T1: 574.
-  # log_P1: -1.
-  # T2: 3356. 
-  # log_P2: -5
-  # T3: 2944.
-  # log_P3: -6. 
+  TP_type: Bezier_4_nodes
+  ### All pressure inputs should be in bars ### 
+  #### !!!!!!!!!! In order of increasing pressures !!!!!!!  
+  ####(or going from top to down in altitude) #### 
+  ##### !!!!  P3,P2,P1,P0 !!!! (P3<P2<P1<P0) 
+  ##### More akin to how Sid does it for Linear, but reverse of the Madhusudhan_Seager profile implementation here.  
+  T0: 3158.
+  log_P0: 2.
+  T1: 574.
+  log_P1: -1.
+  T2: 3356. 
+  log_P2: -5
+  T3: 2944.
+  log_P3: -6. 
 
-  ####### Define chemistry here 
-  chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
-  logZ_planet: 0.0
-  C_to_O: 0.5
-  use_C_to_O: True
-  include_condensation: False
+  # ####### Define chemistry here 
+  # chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  # logZ_planet: 0.0
+  # C_to_O: 0.5
+  # use_C_to_O: True
 
-  ####### Mean molecular weight : do you want to fix it? 
-  fix_MMW: True
-  MMW_value: 2.35
+  ####### Equilibrium chemistry with individual atomic abundance with respect to hydrogen defined.
+  chemistry: 'eq_chem_atomic' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  O_H: 
+  C_H:
+  Fe_H:
+  Si_H: 
+  Mg_H:
+  Ca_H:
+  Ti_H:
+  V_H:
+  Cr_H:
 
   # chemistry: 'free_chem_with_dissoc' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
   # sp_dissoc_list: ['h2o']
@@ -240,7 +247,11 @@ model:
   #   log10_beta_h2o: 4.68
   #   gamma_h2o: 15.9
 
-  # Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
+  ####### Mean molecular weight : do you want to fix it? 
+  fix_MMW: True
+  MMW_value: 2.35
+
+  #### Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
   abundances:
     co: -4.5
     h2o: -4.5
@@ -260,7 +271,7 @@ model:
     cr: -4.5
     v: -4.5
    
-    h_minus: -6.
+    h_minus: -4.
     he: -0.77
   
   species_name_fastchem:
@@ -288,7 +299,6 @@ model:
     v: 'V'
     al: 'Al'
     cr: 'Cr'
-
     h_minus: 'H1-'
     he: 'He'
 
@@ -311,7 +321,7 @@ model:
     Vsys:
       fix_test: 30.4
       prior: Uniform
-      bound: [10., 50., 34., 1.] ###measured value is ~ 34 km/s
+      bound: [5., 50., 34., 1.] ###measured value is ~ 34 km/s
     ### ### ### ### ### ### ### ###
     ### For a Linear gradient profile
     ### ### ### ### ### ### ### ### 
@@ -354,59 +364,59 @@ model:
 
     ### ### ### ### ### ### ### ### ###
     ### For Madhusudhan_Seager TP profile 
-    ## ### ### ### ### ### ### ### ###
-    T_set: 
-      fix_test: 2250.
-      prior: Uniform
-      bound: [1000., 3500., 150, 10.] 
-    alpha1: 
-      fix_test: 0.6
-      prior: Uniform
-      bound: [0.02, 1., 0.02, 0.001] 
-    alpha2: 
-      fix_test: 0.168
-      prior: Uniform
-      bound: [0.02, 1., 0.02, 0.001] 
-    log_P1: ## in log bars 
-      fix_test: -2.3
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
-    log_P2: ## in log bars 
-      fix_test: -0.98
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
-    log_P3: ## in log bars 
-      fix_test: 0.37
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
+    ### ### ### ### ### ### ### ### ###
+    # T_set: 
+    #   fix_test: None
+    #   prior: Uniform
+    #   bound: [1500., 3000., 150, 10.] 
+    # alpha1: 
+    #   fix_test: None
+    #   prior: Uniform
+    #   bound: [0.02, 1., 0.02, 0.001] 
+    # alpha2: 
+    #   fix_test: None
+    #   prior: Uniform
+    #   bound: [0.02, 1., 0.02, 0.001] 
+    # log_P1: ## in log bars 
+    #   fix_test: None
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
+    # log_P2: ## in log bars 
+    #   fix_test: None
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
+    # log_P3: ## in log bars 
+    #   fix_test: None
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
 
     ### ### ### ### ### ### ### ### ###
     ### For TP_Bezier_4_nodes
     ### ### ### ### ### ### ### ### ###
-    # T0:
-    #   fix_test: 3475.37
-    #   prior: Uniform
-    #   bound: [400., 3500., 150, 10.] 
-    # T1:
-    #   fix_test: 1706.35 
-    #   prior: Uniform
-    #   bound: [400., 3500., 0.02, 0.001] 
-    # log_P1:
-    #   fix_test: -3.23 
-    #   prior: Uniform
-    #   bound: [-6., 2., 0.02, 0.001] 
-    # T2:
-    #   fix_test: 2888.97
-    #   prior: Uniform
-    #   bound: [400., 3500., 0., 1.]
-    # log_P2:
-    #   fix_test: 1.99
-    #   prior: Uniform
-    #   bound: [-6., 2., 0., 1.]
-    # T3:
-    #   fix_test: 3175.55
-    #   prior: Uniform
-    #   bound: [400., 3500., 0., 1.]
+    T0:
+      fix_test: 3475.37
+      prior: Uniform
+      bound: [400., 3500., 150, 10.] 
+    T1:
+      fix_test: 1706.35 
+      prior: Uniform
+      bound: [400., 3500., 0.02, 0.001] 
+    log_P1:
+      fix_test: -3.23 
+      prior: Uniform
+      bound: [-6., 2., 0.02, 0.001] 
+    T2:
+      fix_test: 2888.97
+      prior: Uniform
+      bound: [400., 3500., 0., 1.]
+    log_P2:
+      fix_test: 1.99
+      prior: Uniform
+      bound: [-6., 2., 0., 1.]
+    T3:
+      fix_test: 3175.55
+      prior: Uniform
+      bound: [400., 3500., 0., 1.]
 
     logZ_planet:
       fix_test: -2.
@@ -418,10 +428,10 @@ model:
       prior: Uniform
       bound: [0., 2., 0.5,0.1] # log10 of the VMRs # change to -10 to -1
     
-    # h_minus:
-    #   fix_test: -14.6
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+    h_minus:
+      fix_test: -14.6
+      prior: Uniform
+      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
 
     # ### ### ### ### ### ### ### ### ###
     # ### Abundances 

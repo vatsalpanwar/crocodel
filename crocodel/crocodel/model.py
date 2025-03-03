@@ -103,8 +103,8 @@ class Model:
             
             self.species_fastchem_indices = {}
             for sp in self.species: ## Only do this for the species we are including in the model
-                if sp != "h_minus":
-                    self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
+                # if sp != "h_minus":
+                self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
             ## "h2" is usually not in the free abundances so get its index as well separately.
             self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
             
@@ -515,14 +515,20 @@ class Model:
             #Needed to convert the number densities output from FastChem to mixing ratios
             gas_number_density = ( ( press ) *1e6 ) / ( self.k_B_cgs * temp )
             
+            # for sp in self.species:
+            #     if sp != 'h_minus':
+            #         vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
+            #         # X[sp] = vmr.value
+            #         X[sp] = vmr 
+            # vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
+            # X["h2"] = vmr_h2
+            
+            ####### Extracting the h_minus from the Fastchem itself.
             for sp in self.species:
-                if sp != 'h_minus':
-                    vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
-                    # X[sp] = vmr.value
-                    X[sp] = vmr 
+                vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
+                X[sp] = vmr 
             vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
             X["h2"] = vmr_h2
-            # X["h2"] = vmr_h2.value
             
         assert all(X["h2"] >= 0.) # make sure that the hydrogen abundance is not going negative!   
         return X 
@@ -735,7 +741,10 @@ class Model:
         
         
         # Inject the model into the data (should work for both transmission and emission as for transmission the model_spec has -ve sign)
-        datamodel = datacube * (1. + model_spec_shift_cube)
+        if self.method == 'transmission':
+            datamodel = datacube * model_spec_shift_cube
+        elif self.method == 'emission':
+            datamodel = datacube * (1. + model_spec_shift_cube)
 
         # Perform the linear regression fit to data+model
         datamodel_fit = stc.linear_regression(X=pca_eigenvectors,

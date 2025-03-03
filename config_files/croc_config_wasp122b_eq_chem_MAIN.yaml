@@ -2,7 +2,7 @@ infostring:
   # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
   # info: 'TEST_INTERP'
   # info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
-  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_eq_chem_'
+  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_eq_chem_H_minus_proper_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -176,6 +176,7 @@ model:
   use_stellar_phoenix: True
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+  stellar_spectrum_smooth_length: 200
 
   # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
   # # # From Sid'e email and looking at set_T function, 
@@ -225,6 +226,7 @@ model:
   logZ_planet: 0.0
   C_to_O: 0.5
   use_C_to_O: True
+  include_condensation: False
 
   ####### Mean molecular weight : do you want to fix it? 
   fix_MMW: True
@@ -259,7 +261,7 @@ model:
     cr: -4.5
     v: -4.5
    
-    h_minus: -4.
+    h_minus: -6.
     he: -0.77
   
   species_name_fastchem:
@@ -288,6 +290,7 @@ model:
     al: 'Al'
     cr: 'Cr'
 
+    h_minus: 'H1-'
     he: 'He'
 
   cl_P: 0.0 # log(cloud_pressure) in bars 
@@ -416,10 +419,10 @@ model:
       prior: Uniform
       bound: [0., 2., 0.5,0.1] # log10 of the VMRs # change to -10 to -1
     
-    h_minus:
-      fix_test: -14.6
-      prior: Uniform
-      bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
+    # h_minus:
+    #   fix_test: -14.6
+    #   prior: Uniform
+    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
 
     # ### ### ### ### ### ### ### ### ###
     # ### Abundances 

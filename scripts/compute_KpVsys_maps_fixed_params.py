@@ -32,7 +32,8 @@ from crocodel.crocodel import data
 from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
-INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
+# INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
+INST_GLOBAL = 'crires_plus' ## could change this when running for multiple instruments in future implementation.
 
   
 ##########################################################################################################################
@@ -95,8 +96,9 @@ for inst in config_dd['data'].keys():
 if not fix_model:
     free_param_dict = config_dd['model']["free_params"]
     fix_param_dict = {}
-    for pname in free_param_dict.keys():
-        fix_param_dict[pname] = free_param_dict[pname]["fix_test"]
+    if free_param_dict != 'None':
+        for pname in free_param_dict.keys():
+            fix_param_dict[pname] = free_param_dict[pname]["fix_test"]
 
 ############################################################################################################################################################################
 ############################################################################################################################################################################
@@ -338,32 +340,32 @@ else:
 ########### Compute the CCF trail matrix.
 ######################################################################################
 
-print('Trail matrix has been computed before already.')
-print('Computing the trail matrix, both without and with model reprocessing ...')
-if fix_model:
-    fixed_model_wav, fixed_model_spec =  wav_nm, spec
-    planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
-                                                order_inds = order_inds, 
-                        Vsys_range = Vsys_range_trail, savedir = savedir, 
-                        fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec, plot = False )
+# print('Trail matrix has been computed before already.')
+# print('Computing the trail matrix, both without and with model reprocessing ...')
+# if fix_model:
+#     fixed_model_wav, fixed_model_spec =  wav_nm, spec
+#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
+#                                                 order_inds = order_inds, 
+#                         Vsys_range = Vsys_range_trail, savedir = savedir, 
+#                         fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec, plot = False )
     
-    planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
-                                                    order_inds = order_inds, 
-                            Vsys_range = Vsys_range_trail, savedir = savedir, 
-                            fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec )
-    print('Done!')
-else:
-    for pname in fix_param_dict.keys():
-        if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
-            print(pname, fix_param_dict[pname])
-            setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
-        else:
-            setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
+#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
+#                                                     order_inds = order_inds, 
+#                             Vsys_range = Vsys_range_trail, savedir = savedir, 
+#                             fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec )
+#     print('Done!')
+# else:
+#     for pname in fix_param_dict.keys():
+#         if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+#             print(pname, fix_param_dict[pname])
+#             setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
+#         else:
+#             setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
 
-    planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
-                                                    order_inds = order_inds, 
-                            Vsys_range = Vsys_range_trail, savedir = savedir)
-    print('Done!')
+#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
+#                                                     order_inds = order_inds, 
+#                             Vsys_range = Vsys_range_trail, savedir = savedir)
+#     print('Done!')
 
 
 ##############################################################################

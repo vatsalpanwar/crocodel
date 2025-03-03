@@ -1,6 +1,7 @@
 infostring: 
   # info: 'IGRINS_WASP-122b_FAST_FIX_MODEL_POKAZATEL_Krishna_RCTE_logZ_-2_'
-  info: 'IGRINS_WASP-122b_logZ_0_MAIN_Rodriguez_'
+  # info: 'IGRINS_WASP-122b_logZ_0_MAIN_Rodriguez_'
+  info: 'IGRINS_WASP-122b_logZ_-2_MAIN_Rodriguez_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -132,11 +133,17 @@ data: # Each high level key under data should be the name of the instrument.
 
       }
     cross_correlation_params:
-      Vsys_range: [0., 80.]
-      Kp_range: [140., 240.]
+      # Vsys_range: [0., 80.]
+      # Kp_range: [140., 240.]
 
-      Vsys_range_trail: [-350.,350.]
-      vel_window: [350,-270]
+      # Vsys_range_trail: [-350.,350.]
+      # vel_window: [350,-270]
+
+      Vsys_range: [-80., 80.]
+      Kp_range: [125., 300.]
+      Vsys_range_trail: [-450.,450.]
+      vel_window: [370,-370]
+
       Vsys_step: 1.
       Kp_step: 1.
 
@@ -174,15 +181,15 @@ model:
   use_stellar_phoenix: True
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+  stellar_spectrum_smooth_length: 200
 
   ####### ####### ####### ####### ####### ####### ####### ####### ####### ####### 
   ####### Do you have a fixed pre-calculated model that you want to use?  #######
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
   fix_model_info:
    fix_model: True
-   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output_Rodriguez_params_POKAZATEL_Krishna_RCTE_logZ_0_20-12-2024T14-11-02/'
-  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_0_06-12-2024T14-50-02/'
-  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output__POKAZATEL_Krishna_RCTE_logZ_-2_03-12-2024T13-20-43/'
+  #  fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output_Rodriguez_params_POKAZATEL_Krishna_RCTE_logZ_0_20-12-2024T14-11-02/'
+   fix_model_path: '/home/astro/phsprd/code/genesis/outputs/output_Rodriguez_params_POKAZATEL_Krishna_RCTE_logZ_-2_20-12-2024T14-38-08/'
   ### the above directory should contain abund_dict.npy, spec_dict.npy, and TP_dict.npy
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
   ####### ####### ####### ####### ####### ####### ####### ####### ####### #######
