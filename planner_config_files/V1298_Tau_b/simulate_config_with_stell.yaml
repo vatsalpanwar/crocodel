@@ -1,0 +1,83 @@
+instrument: 'igrins'
+
+snr_info:
+  output_path: '/home/astro/phsprd/proposals/NOIRLabs_March2025_for_2025B/V1298_Tau_c_igrins_proposal/simulated_data/igrins-2_itc_outputs/calc_1/'
+  
+  T_exp: 100 ###
+  
+  overhead_per_exp: 52.5 ## 11.6 + 10 + 7.1/2 ## in seconds ; for IGRINS-2 it is 7.1 seconds per AB pair 
+
+simulation_info:
+  
+  boost_signal_factor: 1.
+
+  infostring: 'V1298_Tau_b_Anjali_IGRINS_proposal'
+
+  N_PCA: 2
+  
+  noise: 'photon_noise'
+  
+  include_star: False
+  
+  include_tellurics: False ## Not used now, mark it True in future if you want to compute it yourself separately (when set False, just use IGRINS ITC output which has this included). 
+  
+  snr_thresh: 10.
+  
+  N_visit: 1 ## If you want to average over two visits
+  
+  savedir: '/home/astro/phsprd/proposals/NOIRLabs_March2025_for_2025B/V1298_Tau_c_igrins_proposal/results/'
+
+  CC_species: ['all', 'h2o', 'co', 'ch4', 'nh3']
+
+planet_info:
+  
+  method: 'transmission'
+
+  transit_duration: 6.42 ## Hours
+  
+  P_orb: 24.1315 ## Days 
+  RpRs: 0.0636
+  a_Rs: 27.6
+  inc: 88.759
+  ecc: 0.
+  w: 90.
+  
+  
+  
+  phase_range: [-0.0055, 0.0055] ### In future calculate the phase range based on the date provided in the simulation info
+  
+  Kp_true: 76.
+  
+  Vsys_true: 16.15
+  
+  Vsys_range: [-250., 250.] ## To compute the trail matrix
+  Vsys_step: 1.
+  vel_window: [220,-220] ## Windowing the Vsys_range to a smaller range to make the KpVsys map
+  
+  Kp_range: [50., 190.]
+  Kp_step: 1.
+  
+  model_dir: '/home/astro/phsprd/proposals/NOIRLabs_March2025_for_2025B/V1298_Tau_c_igrins_proposal/models/'
+
+  inject_model_path: 'output_V1298_Tau_b_IGRINS_proposal_logZ_0.0_cl_P_0.0_transmission/'
+  inject_model_infostring: 'INJ_logZ_0.0_cl_P_0.0_transmission'
+
+  cross_correlate_model_path: 'output_V1298_Tau_b_IGRINS_proposal_logZ_0.0_cl_P_0.0_transmission/'
+  cross_correlate_model_infostring: 'CC_logZ_0.0_cl_P_0.0_transmission'
+    
+  model_config: ' ' ## Add path to model config file, which can be used to load the model configuration and calculate a 1D model grid for a single varying parameter; not used right now.
+  
+  posterior_params: 
+    'C_to_O' : [0., 1., 0.01]
+    'logZ_planet': [-2., 2., 0.01] #### Parameters for 
+  
+  
+telluric_info:
+  pwv: 3.
+  ### In future calculate the airmass here based on a date keyword provided in the simulation info 
+  
+star_info:
+  T_eff: 5000
+  log_g: 4.
+  met: 0.
+  

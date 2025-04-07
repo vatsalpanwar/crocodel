@@ -18,7 +18,10 @@ from . import astro_utils as aut
 from tqdm import tqdm 
 from astropy.io import ascii as ascii_reader
 import copy
+
 # from astropy import units as un
+
+FAST_CHEM_DIR = '/home/astro/phsprd/code/crocodel/fastchem_inputs/'
 
 
 class Model:
@@ -67,21 +70,27 @@ class Model:
         # Load the names of all the absorbing species to be included in the model
         self.species = np.array(list(self.config['model']['abundances'].keys()))
         self.species_name_fastchem = self.config['model']['species_name_fastchem']
-
+        if self.config['model']['include_cia'] is not None:
+            self.include_cia = self.config['model']['include_cia']
+        else:
+            self.include_cia = True
+        
         if self.chemistry == 'eq_chem':
             #create a FastChem object
             #it needs the locations of the element abundance and equilibrium constants files
             self.include_condensation = self.config['model']['include_condensation']
+            
+            
             if self.include_condensation:
                 self.fastchem = pyfastchem.FastChem(
-                '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
-                '../fastchem_inputs/input/logK/logK.dat',
-                '../fastchem_inputs/input/logK/logK_condensates.dat',
+                FAST_CHEM_DIR + 'input/element_abundances/asplund_2020.dat',
+                FAST_CHEM_DIR +'input/logK/logK.dat',
+                FAST_CHEM_DIR +'input/logK/logK_condensates.dat',
                 1)
             else:
                 self.fastchem = pyfastchem.FastChem(
-                '../fastchem_inputs/input/element_abundances/asplund_2020.dat',
-                '../fastchem_inputs/input/logK/logK.dat',
+                FAST_CHEM_DIR +'input/element_abundances/asplund_2020.dat',
+                FAST_CHEM_DIR +'input/logK/logK.dat',
                 1)
             
             # Make a copy of the solar abundances from FastChem
@@ -116,11 +125,19 @@ class Model:
                 setattr(self, 'gamma_'+ sp , self.config['model']['sp_dissoc_params']['gamma_'+sp])
                 
         
-        if self.TP_type == 'Linear':
+        if self.TP_type in ['Linear', 'Linear_force_inverted', 'Linear_force_non_inverted']:
             self.P2 = 10.**self.config['model']['P2']
             self.T2 = self.config['model']['T2']
             self.P1 = 10.**self.config['model']['P1']
             self.T1 = self.config['model']['T1']
+        elif self.TP_type == 'Linear_3_point':
+            self.P2 = 10.**self.config['model']['P2']
+            self.T2 = self.config['model']['T2']
+            self.P1 = 10.**self.config['model']['P1']
+            self.T1 = self.config['model']['T1']
+            self.P0 = 10.**self.config['model']['P0']
+            self.T0 = self.config['model']['T0']
+            
             
         elif self.TP_type == 'Guillot':
             self.T_int= self.config['model']['T_int']
@@ -150,6 +167,21 @@ class Model:
             self.log_P2 = self.config['model']['log_P2']
             self.T3 = self.config['model']['T3']
             self.log_P3 = self.config['model']['log_P3']
+            
+        elif self.TP_type == 'Bezier_6_nodes':
+            self.T0 = self.config['model']['T0']
+            self.log_P0 = self.config['model']['log_P0']
+            self.T1 = self.config['model']['T1']
+            self.log_P1 = self.config['model']['log_P1']
+            self.T2 = self.config['model']['T2']
+            self.log_P2 = self.config['model']['log_P2']
+            self.T3 = self.config['model']['T3']
+            self.log_P3 = self.config['model']['log_P3']
+            self.T4 = self.config['model']['T4']
+            self.log_P4 = self.config['model']['log_P4']
+            self.T5 = self.config['model']['T5']
+            self.log_P5 = self.config['model']['log_P5']
+            
         
         # Planet properties 
         self.R_planet= self.config['model']['R_planet'] # Radius of the planet, in terms of R_Jup
@@ -348,11 +380,16 @@ class Model:
         is a property of the class, so just use that elsewhere for example for calculating the equilibrium chemistry abundances.)
         """
         gen_ = self.Genesis_instance
-        if self.TP_type == 'Linear':
+        if self.TP_type in ['Linear', 'Linear_force_inverted', 'Linear_force_non_inverted']:
             # From Sid'e email and looking at set_T function, 
             # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2!
-            gen_.set_T(self.P1, self.T1, self.P2, self.T2) # This part should have options to choose different kinds of TP profile.
+            gen_.set_T(self.P1, self.T1, self.P2, self.T2, type = self.TP_type) # This part should have options to choose different kinds of TP profile.
         
+        elif self.TP_type == 'Linear_3_point':
+            # From Sid'e email and looking at set_T function, 
+            # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2!
+            gen_.set_T(self.P1, self.T1, self.P2, self.T2, P0= self.P0, T0= self.T0, type = self.TP_type) # This part should have options to choose different kinds of TP profile.
+ 
         elif self.TP_type == 'Guillot':
             gen_.T = aut.guillot_TP(pressure_levels = gen_.P.copy()/1e5, # Pressure should be in bars for this 
                                    T_int = self.T_int, 
@@ -380,7 +417,12 @@ class Model:
         elif self.TP_type == 'Bezier_4_nodes':
             gen_.T = aut.PTbez(logParr = np.log10(gen_.P.copy()/1e5),
                                 Ps = [self.log_P3, self.log_P2, self.log_P1, self.log_P0],
-                                Ts = [self.T3, self.T2, self.T1, self.T0]) 
+                                Ts = [self.T3, self.T2, self.T1, self.T0])
+        
+        elif self.TP_type == 'Bezier_6_nodes':
+            gen_.T = aut.PTbez(logParr = np.log10(gen_.P.copy()/1e5),
+                                Ps = [self.log_P5, self.log_P4, self.log_P3, self.log_P2, self.log_P1, self.log_P0],
+                                Ts = [self.T5, self.T4, self.T3, self.T2, self.T1, self.T0] )  
             
         return gen_.T, gen_.P.copy() / 1E5 
     
@@ -548,13 +590,13 @@ class Model:
             
         if self.method == "transmission":
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
-            spec = self.gen.genesis(abund_dict, cl_P = self.cl_P)
+            spec = self.gen.genesis(abund_dict, cl_P = self.cl_P, include_cia = self.include_cia)
             spec /= ((self.R_star*6.957e8)**2.0)
             # spec = 1.-spec
             spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
-            spec = self.gen.genesis(abund_dict)
+            spec = self.gen.genesis(abund_dict, include_cia = self.include_cia)
             spec /= self.stellar_flux_BB(self.R_star, self.gen.lam, self.T_eff)
         
         return (10**9) * self.gen.lam, 10**self.log_fs * spec 
@@ -581,7 +623,7 @@ class Model:
             sys.exit('Method only applicable to emission.')
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
-            spec = self.gen.genesis(abund_dict)
+            spec = self.gen.genesis(abund_dict, include_cia = self.include_cia)
             # spec /= self.stellar_flux(self.R_star, self.gen.lam, self.T_eff)
             # return spec
         return (10**9) * self.gen.lam, 10**self.log_fs * spec     
@@ -613,7 +655,7 @@ class Model:
     
     def get_contribution_function(self):
         X_dict = self.abundances_dict
-        contribution_func, tau, P_array, P_tau = self.gen.contribution_function(X_dict, tau_val = 2./3.)
+        contribution_func, tau, P_array, P_tau = self.gen.contribution_function(X_dict, tau_val = 2./3., include_cia = self.include_cia)    
 
         return contribution_func, tau, P_array, P_tau
     
@@ -797,7 +839,7 @@ class Model:
         #######################################################################
         ################# SET THE SAMPLED FREE PARAMETERS FOR THE MODEL #######
         for i, pname in enumerate(self.free_params_dict.keys()):
-            if pname in self.species or pname in ['P1','P2']:
+            if pname in self.species or pname in ['P0', 'P1','P2']:
                 setattr(self, pname, 10.**theta[i])
                 # print('Setting ', pname, ': ', 10.**theta[i])
             else:
@@ -1264,7 +1306,7 @@ class Model:
             #######################################################################
             ################# SET THE SAMPLED FREE PARAMETERS FOR THE MODEL #######
             for pname in theta_fit_dd.keys():
-                if pname in self.species or pname in ['P1','P2']:
+                if pname in self.species or pname in ['P0', 'P1','P2']:
                     setattr(self, pname, 10.**theta_fit_dd[pname][postind])
                 else:
                     setattr(self, pname, theta_fit_dd[pname][postind])
@@ -1479,7 +1521,7 @@ class Model:
             #######################################################################
             ################# SET THE SAMPLED FREE PARAMETERS FOR THE MODEL #######
             for pname in theta_fit_dd.keys():
-                if pname in self.species or pname in ['P1','P2']:
+                if pname in self.species or pname in ['P0', 'P1','P2']:
                     setattr(self, pname, 10.**theta_fit_dd[pname][postind])
                 else:
                     setattr(self, pname, theta_fit_dd[pname][postind])

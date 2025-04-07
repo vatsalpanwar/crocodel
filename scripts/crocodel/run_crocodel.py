@@ -331,9 +331,10 @@ def log_likelihood_multinest(cube, ndim, nparams):
     try:
         logL_total = planet_model_dict_global[inst].logL_fast(cube, datadetrend_dd = datadetrend_dd_global,
                                                                           order_inds=order_inds)
-    except AssertionError:
+    except (AssertionError, ValueError):
         logL_total = -1e90
     return logL_total
+
 
 ################################################################
 ################################################################

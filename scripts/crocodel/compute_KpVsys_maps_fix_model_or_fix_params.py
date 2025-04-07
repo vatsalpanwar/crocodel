@@ -32,8 +32,7 @@ from crocodel.crocodel import data
 from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
-# INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
-INST_GLOBAL = 'crires_plus' ## could change this when running for multiple instruments in future implementation.
+
 
   
 ##########################################################################################################################
@@ -47,11 +46,15 @@ parser.add_argument('-dt','--date_tag', help = "(Optional) Date tag of a previou
                     type=str, required=False)
 parser.add_argument('-mmet','--map_calc_method', help = "Method used to calculate the map, 'fast' or 'slow'. Fast is done without model reprocessing using the fast method, and slow is done with model reprocessing.",
                     type=str, required=True)
+parser.add_argument('-inst','--instrument', help = "Name of the instrument.",
+                    type=str, required=True)
 
 args = vars(parser.parse_args())
 config_file_path = args['config_file_path']
 KpVsys_method = args['map_calc_method']
-
+INST_GLOBAL = args['instrument'] ## can be either igrins or crires_plus
+# INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments in future implementation.
+# INST_GLOBAL = 'crires_plus' ## could change this when running for multiple instruments in future implementation.
 
 if args['date_tag'] is None:
     now = datetime.datetime.now()
@@ -216,7 +219,7 @@ Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
 ##############################################################################################
 ## Computing the total model and models for individual species ###################################################
 ##############################################################################################
-if fix_model:
+if fix_model: #### the model should already have been calculated before using a separate script.
     fix_model_path = fix_model_info['fix_model_path']
     model_dd = np.load(fix_model_path + 'spec_dict.npy', allow_pickle = True).item()
     
@@ -241,61 +244,81 @@ if fix_model:
     SP_INDIV = [x for x in abund_dict.keys() if x != 'press_median']
     colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.2)
     SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
-        
-else:
+    ####################### OLD ################################################# 
     wav_nm, spec = planet_model_dict_global[INST_GLOBAL].get_spectra()
     abund_dict = planet_model_dict_global[INST_GLOBAL].abundances_dict
     SP_INDIV = [x for x in config_dd_global['model']['abundances'].keys() if x != 'he']
     colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.5 )
     SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
 
-############# For individual species 
-# model_ind_dd = {}
-# for spnm in SP_INDIV:
-#     model_ind_dd[spnm] = {}
-#     model_ind_dd[spnm]['wav'], model_ind_dd[spnm]['spec'] = [], []
-# species_list = planet_model_dict_global[INST_GLOBAL].species
-# for spnm in SP_INDIV:
-#     ## Calculating the model with only contributions from this species 
-#     setattr(planet_model_dict_global[INST_GLOBAL], spnm, 10.**abund_dict[spnm] )
-    
-#     ## Set all other species to very low abundances 
-#     for spnm_ex in SP_INDIV:
-#         if spnm_ex != spnm:
-#             setattr(planet_model_dict_global[INST_GLOBAL], spnm, 10.**-30.)
-    
-#     wav_sp, spec_sp = planet_model_dict_global[INST_GLOBAL].get_spectra()
-#     model_ind_dd[spnm]['wav'].append(wav_sp)
-#     model_ind_dd[spnm]['spec'].append(spec_sp)
-    
-# for spnm in SP_INDIV:
-#     model_ind_dd[spnm]['wav'], model_ind_dd[spnm]['spec'] = np.array(model_ind_dd[spnm]['wav']), np.array(model_ind_dd[spnm]['spec'])
-    
-############ Plot the model only ########### 
-plt.figure(figsize = (12,5))
-plt.plot(wav_nm, spec, color = 'xkcd:green', linewidth = 0.7 )
+        
+    ########### Plot the model only ########### 
+    plt.figure(figsize = (12,5))
+    plt.plot(wav_nm, spec, color = 'xkcd:green', linewidth = 0.7 )
 
-# for ii, spnm in enumerate(SP_INDIV):
-#     plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
-# plt.legend()
+    # for ii, spnm in enumerate(SP_INDIV):
+    #     plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
+    # plt.legend()
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Fp/Fs')
+    plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
+
+    np.save(savedir + 'wav_nm.npy', wav_nm)
+    np.save(savedir + 'spec.npy', -spec)
+        
+else:
+    model_ind_dd = {}
+    model_ind_dd['all_species'] = {}
+    
+    if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+    
+        model_wav, model_Fp_orig = planet_model_dict_global[INST_GLOBAL].get_Fp_spectra()    
+        phoenix_model_lsf_broad = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=planet_model_dict_global[INST_GLOBAL].phoenix_model_flux)
+        ### Rotationally broaden the planetary spectrum 
+        model_Fp_orig_broadened, _ = planet_model_dict_global[INST_GLOBAL].rotation(vsini = planet_model_dict_global[INST_GLOBAL].vsini_planet, 
+                                                    model_wav = model_wav, model_spec = model_Fp_orig)
+        
+        
+        model_Fp = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+        plt.figure(figsize = (12,5))
+        plt.plot(model_wav,
+                model_Fp, color = 'xkcd:green', linewidth = 0.5 ) 
+        plt.xlabel('Wavelength [nm]')
+        plt.ylabel('Fp')
+        plt.savefig(savedir + 'best_fit_model_only_Fp.pdf', format='pdf', bbox_inches='tight')
+
+        model_FpFs = model_Fp/phoenix_model_lsf_broad
+        model_ind_dd['all_species']['wav_nm'], model_ind_dd['all_species']['spec'] = model_wav, model_FpFs
+    
+    else:
+        model_wav, model_spec_orig = planet_model_dict_global[INST_GLOBAL].get_spectra()
+        # Rotationally broaden the spectrum 
+        model_spec_orig_broadened, _ = planet_model_dict_global[INST_GLOBAL].rotation(vsini = planet_model_dict_global[INST_GLOBAL].vsini_planet, 
+                                        model_wav = model_wav, model_spec = model_spec_orig)   
+        # Convolve the model to the instrument resolution already
+        model_spec = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+        model_ind_dd['all_species']['wav_nm'], model_ind_dd['all_species']['spec'] = model_wav, model_spec
+        
+np.save(savedir + 'model_spec_dict.npy', model_ind_dd)
+plt.figure(figsize = (12,5))
+plt.plot(model_ind_dd['all_species']['wav_nm'],
+         model_ind_dd['all_species']['spec'], color = 'xkcd:green', linewidth = 0.5 ) 
+    
 plt.xlabel('Wavelength [nm]')
 plt.ylabel('Fp/Fs')
 plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
-
-np.save(savedir + 'wav_nm.npy', wav_nm)
-np.save(savedir + 'spec.npy', -spec)
-
-############ Plot the model and the data across all orders ########### 
-plt.figure(figsize = (12,5))
-# spnm = 'fe' ## Just plot one of the species 
-# plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
-plt.plot(wav_nm, spec, color = 'r', linewidth = 0.7 )
-dk = list(datadetrend_dd.keys())[0]
-for iord in range(datadetrend_dd[dk]['datacube_mean_sub'].shape[0]):
-    data_order_time_av = np.mean(datadetrend_dd[dk]['datacube_mean_sub'][iord,:,:], axis = 0)
-    plt.plot(datadetrend_dd[dk]['data_wavsoln'][iord,:], data_order_time_av, color = 'xkcd:azure')
-plt.savefig(savedir + 'data_and_model_all_orders_average.png', format='png', dpi=300, bbox_inches='tight')
-plt.close('all')
+    
+# ############ Plot the model and the data across all orders ########### 
+# plt.figure(figsize = (12,5))
+# # spnm = 'fe' ## Just plot one of the species 
+# # plt.plot(model_ind_dd[spnm]['wav'][0], model_ind_dd[spnm]['spec'][0]-(ii+1)*0.0002, color = SP_COLORS[spnm], label = spnm, linewidth = 0.7 )
+# plt.plot(wav_nm, spec, color = 'r', linewidth = 0.7 )
+# dk = list(datadetrend_dd.keys())[0]
+# for iord in range(datadetrend_dd[dk]['datacube_mean_sub'].shape[0]):
+#     data_order_time_av = np.mean(datadetrend_dd[dk]['datacube_mean_sub'][iord,:,:], axis = 0)
+#     plt.plot(datadetrend_dd[dk]['data_wavsoln'][iord,:], data_order_time_av, color = 'xkcd:azure')
+# plt.savefig(savedir + 'data_and_model_all_orders_average.png', format='png', dpi=300, bbox_inches='tight')
+# plt.close('all')
 
 
 ##########################################################################################
@@ -326,7 +349,12 @@ if fix_model:
     plt.savefig(savedir + 'abundances.pdf', format='pdf', dpi=300, bbox_inches='tight')
 
 else:
+    ############ Compute and plot the TP profile ############## 
     temp, press = planet_model_dict_global[INST_GLOBAL].get_TP_profile()
+    tp_dict = {}
+    tp_dict['temp_median'] = temp
+    tp_dict['press_median'] = press
+    np.save(savedir + 'TP_dict.npy', tp_dict)
     plt.figure()
     plt.plot(temp,press, color = 'k' )
     plt.ylim(press.max(), press.min())
@@ -335,7 +363,123 @@ else:
     plt.ylabel('Pressure [bar]')
     plt.savefig(savedir + 'TP_profile.png', format='png', dpi=300, bbox_inches='tight')
     
+    ############ Compute and plot the abundances ############## 
+    abund_dict_test = planet_model_dict_global[INST_GLOBAL].abundances_dict
+    abund_dict_save = {}
+    abund_dict_save['press_median'] = tp_dict['press_median']
+    SP_INDIV = [x for x in abund_dict_test.keys()]
+    for sp in abund_dict_test.keys():
+        abund_dict_save[sp] = {}
+        abund_dict_save[sp]['abund_med_sig'] = abund_dict_test[sp]
+    np.save(savedir + 'abund_dict.npy', abund_dict_save)
+    
+    colors_all = distinctipy.get_colors( len(SP_INDIV), pastel_factor=0.2)
+    SP_COLORS = {SP_INDIV[i]:colors_all[i] for i in range(len(SP_INDIV))}
+    
+    plt.figure()
+    for i_sp, sp in enumerate(abund_dict_save.keys()):
+        # if sp not in ['h2', 'he', 'press_median']:
+        if sp in SP_INDIV:
+            plt.plot( abund_dict_save[sp]['abund_med_sig'], abund_dict_save['press_median'], color = SP_COLORS[sp], label = sp )
+            # plt.fill_betweenx(abund_dict_save['press_median'], abund_dict_save[sp]['abund_min_sig'], abund_dict_save[sp]['abund_plus_sig'], color = SP_COLORS[sp], alpha = 0.2)
+            
+    plt.ylim(abund_dict_save['press_median'].max(), abund_dict_save['press_median'].min())
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.xlabel('VMR')
+    plt.ylabel('Pressure [bar]')
+    plt.legend(fontsize = 8)
+    plt.savefig(savedir + 'abundances.pdf', format='pdf', dpi=300, bbox_inches='tight')
+    print('Done!')
+        
+    ##############################################################################
+### Compute the contribution functions and then overplot them with the TP
+    ##############################################################################
+    contri_dict = {}
+    contri_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
+    contri_dict['wav_nm'] = model_ind_dd['all_species']['wav_nm']
+    contri_dict['tau'] = tau
+    contri_dict['P_array'] = P_array
+    contri_dict['P_tau'] = P_tau
+    contri_dict['contri_func'] = contri_func
+    np.save(savedir + 'contri_func_dict.npy', contri_dict) 
 
+    ####### Plot the contribution function ################################################
+
+    ##### First plot the 2D map of the optical depth 
+    plt.figure(figsize = (16,10))
+    plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array, np.log10(tau) )
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Pressure [bar]')
+    plt.yscale('log')
+    plt.ylim(max(P_array),min(P_array))
+    # plt.xlim(xmin = 2400., xmax = 2410.)
+    plt.colorbar(label = 'log$_{10}$tau')
+    plt.savefig(savedir + 'tau_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
+
+    ##### Plot the 2D map of the contribution function (without blackbody)
+    # import pdb
+    # pdb.set_trace()
+    plt.figure(figsize = (16,10))
+    plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array[1:], contri_func.T )
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Pressure [bar]')
+    plt.yscale('log')
+    plt.ylim(max(P_array[1:]),min(P_array[1:]))
+    # plt.xlim(xmin = 2400., xmax = 2410.)
+    plt.colorbar(label = 'CF')
+    plt.savefig(savedir + 'cf_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
+
+    ##### Plot the histogram of the pressure values 
+    plt.figure(figsize = (12,10))
+    plt.hist( P_tau, histtype = 'step', bins = 50, density = True, alpha = 1., color = 'k' )
+    plt.xscale('log')
+    plt.xlabel('Pressure for tau = 2/3 [bar]')
+    plt.ylabel('Probability Density')
+    plt.savefig(savedir + 'contribution_function_hist.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
+
+    ##### Plot the tau = 2./3. pressure points across the wavelength range 
+    plt.figure(figsize = (12,10))
+    plt.plot( model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k' )
+    plt.yscale('log')
+    plt.ylim(max(tp_dict['press_median']),min(tp_dict['press_median']))
+    plt.xlabel('Wavelength [nm]')
+    plt.ylabel('Pressure for tau = 2/3 [bar]')
+    plt.savefig(savedir + 'P_tau_2by3_surface.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
+
+    ####### Plot the TP profile ######### 
+    ## with the histogram of P for tau = 2/3 across all the surfaces 
+    plt.figure()
+    # plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['temp_plus_sig'], color = 'r', alpha = 0.2)
+    # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
+    plt.plot(tp_dict['temp_median'],tp_dict['press_median'], color = 'r' )
+
+    plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
+    plt.xlim(1600.,3500.)
+    plt.yscale('log')
+    plt.xlabel('Temperature [K]')
+    plt.ylabel('Pressure [bar]')
+    ax2 = plt.gca().twiny()
+    ax2.hist( P_tau, histtype = 'step', bins = 100, density = True, alpha = 1., color = 'k' , orientation = 'horizontal')
+    ax2.set_xlabel('Probability Density')
+    plt.savefig(savedir + 'TP_profile_contribution_function_hist.pdf', format='pdf', dpi=300, bbox_inches='tight')
+
+    ## 2/3 pressures
+    plt.figure()
+    # plt.fill_betweenx(tp_dict['press_median'],tp_dict['temp_min_sig'], tp_dict['temp_plus_sig'], color = 'r', alpha = 0.2)
+    # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
+    plt.plot(tp_dict['temp_median'],tp_dict['press_median'], color = 'r' )
+    plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
+    plt.xlim(1600.,3500.)
+    plt.yscale('log')
+    plt.xlabel('Temperature [K]')
+    plt.ylabel('Pressure [bar]')
+    ax2 = plt.gca().twiny()
+    ax2.plot(model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k', alpha = 0.6)
+    ax2.set_xlabel('Wavelength [nm]')
+    plt.savefig(savedir + 'TP_profile_tau_2by3_pressures.pdf', format='pdf', dpi=300, bbox_inches='tight')
+
+exit()
 ######################################################################################
 ########### Compute the CCF trail matrix.
 ######################################################################################

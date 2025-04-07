@@ -257,7 +257,7 @@ press_list['median'] = press
 ################## Randomly sample the chains of the posterior to construct 100 random TP profiles 
 ####################################################################################################
 ## Might need to put a check here if the TP params are in the fit param dictionary 
-if config_dd['model']['TP_type'] == 'Linear':
+if config_dd['model']['TP_type'] in ['Linear', 'Linear_force_inverted', 'Linear_force_non_inverted']:
     chain_inds = np.random.randint(0, len(chain_dd['T1'])-1, 3000)
     P1_samp = chain_dd['P1'][chain_inds]
     T1_samp = chain_dd['T1'][chain_inds]
@@ -275,7 +275,8 @@ if config_dd['model']['TP_type'] == 'Linear':
         temp_samp.append(temp_)
         press_samp.append(press_)
     temp_samp, press_samp = np.array(temp_samp), np.array(press_samp)
-    
+
+
 elif config_dd['model']['TP_type'] == 'Guillot':
     chain_inds = np.random.randint(0, len(chain_dd['T_irr'])-1, 3000)
     T_irr_samp = chain_dd['T_irr'][chain_inds]
@@ -601,6 +602,9 @@ planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_r
             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window)
 
 exit()
+
+################################################################################
+################################################################################
 print('Using slow method next ...')   
 KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                             Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir)

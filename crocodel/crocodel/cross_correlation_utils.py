@@ -632,7 +632,8 @@ def get_2D_grid_search(logL_maps = None, Kp_range = None, Vsys_range = None, KpV
     #     plot_type (str): The type of colormap plot. Defaults to 'pcolormesh'.
     # """
 def plot_2D_cmap(axis=None, matrix_2D=None, Y=None, X=None, title=None,
-                      setxlabel=False, setylabel=False, plot_type = 'pcolormesh', ylabel = None, xlabel = None):
+                      setxlabel=False, setylabel=False, plot_type = 'pcolormesh', ylabel = None, xlabel = None,
+                      colormap = 'viridis'):
     """Plot a 2D colormap for a given 2D matrix.
 
     :param axis: Axis object corresponding to a subplot from a predefined figure., defaults to None
@@ -675,13 +676,14 @@ def plot_2D_cmap(axis=None, matrix_2D=None, Y=None, X=None, title=None,
         axis = plt.gca()
         
     if plot_type == 'pcolormesh':
-        plot_hand = axis.pcolormesh(X, Y, matrix_2D)
+        plot_hand = axis.pcolormesh(X, Y, matrix_2D, cmap = colormap)
     elif plot_type == 'contourf': # Useful for sigma contours
-        plot_hand = axis.contourf(X, Y, matrix_2D, [0,1,2,3,4,5,6,7,8,9,10])
+        plot_hand = axis.contourf(X, Y, matrix_2D, [0,1,2,3,4,5,6,7,8,9,10], cmap = colormap, extend = 'max')
     axis.set_title(title)
     if setylabel:
         axis.set_ylabel(ylabel)
     if setxlabel:
         axis.set_xlabel(xlabel)
+    fig = plt.gcf()
     return fig, plot_hand
 
