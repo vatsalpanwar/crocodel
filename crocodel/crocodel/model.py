@@ -1631,14 +1631,13 @@ class Model:
                         model_spec_flux_shift = model_spec_flux_shift - crocut.fast_mean(model_spec_flux_shift)
                         #### Compute the cross correlation value between the shifted model and the data
                         
-                        # if it == 0 and iv == 0:
-                            # plt.figure(figsize = (10,8))
-                            # plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
-                            # plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
-                            # plt.legend()
-                            # plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')  
-                                                        # plt.figure(figsize = (10,8)) 
-                        # plt.close('all')
+                        if it == 0 and iv == 0:
+                            plt.figure(figsize = (10,8))
+                            plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
+                            plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
+                            plt.legend()
+                            plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')  
+                        plt.close('all')
                         _, cc_matrix_all_orders[i_ind,it,iv], logL_matrix_all_orders[i_ind,it,iv] = crocut.fast_cross_corr(data=datacube_mean_sub[ind,it,~avoid_mask], 
                                                                                                                      model=model_spec_flux_shift[~avoid_mask])
                         

@@ -162,3 +162,6 @@ cython_debug/
 #.idea/
 
 examples/
+crocodel_config_files/mascara-4b/
+crocodel_config_files/wasp-193b/
+crocodel_config_files/wasp-107b/
