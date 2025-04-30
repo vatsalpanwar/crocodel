@@ -98,6 +98,7 @@ def get_spdatacubes_spirou(spec_dd_path = None,
         spec_dd_sav['time'] = times_BJD_TDB[time_index_mask]
         spec_dd_sav['bary_RV'] = Vbary[time_index_mask]
         spec_dd_sav['phases'] = phases[time_index_mask]
+        spec_dd_sav['nancolmask'] = spec_dd_inp['nancolmask']
     else:
         spec_dd_sav['spdatacube'] = spec_dd_inp['flux']
         spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
@@ -105,6 +106,7 @@ def get_spdatacubes_spirou(spec_dd_path = None,
         spec_dd_sav['time'] = times_BJD_TDB
         spec_dd_sav['bary_RV'] = Vbary
         spec_dd_sav['phases'] = phases
+        spec_dd_sav['nancolmask'] = spec_dd_inp['nancolmask']
         
     print('phases: ', phases)
 

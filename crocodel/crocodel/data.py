@@ -138,13 +138,28 @@ class Data:
             data_mean_norm = np.mean(datacube, axis = 0) 
         else:
             data_mean_norm = np.mean(datacube, axis = 0)/np.mean(np.mean(datacube, axis = 0))
-        pre_pca_mask = np.zeros(datacube.shape[1], dtype=bool) ## Just like colmask, True are for the indices you want to mask OUT. 
         
+        pre_pca_mask_tell = np.zeros(datacube.shape[1], dtype=bool) ## Just like colmask, True are for the indices you want to mask OUT. 
+        ### Based on a predefined lower threshold for the flux, mask out the pixels that are below this threshold.
         if self.config['data'][inst]['stellcorr_params']['pre_pca_mask_flux_threshold'] != 'none':
             for ipix in range(len(data_mean_norm)):
                 if data_mean_norm[ipix] < self.config['data'][inst]['stellcorr_params']['pre_pca_mask_flux_threshold']:
-                    pre_pca_mask[ipix] = True
-                        
+                    pre_pca_mask_tell[ipix] = True
+        
+        
+        pre_pca_mask_nans = np.zeros(datacube.shape[1], dtype=bool) ## Just like colmask, True are for the indices you want to mask OUT
+        try:
+            nancolmask = spdatacubes_dd['nancolmask']
+        except KeyError:
+            nancolmask = None
+        # If the nancolmask is not None, then use it to create the pre_pca_mask_nans
+        
+        if nancolmask is not None:
+            for ipix in range(spdatacubes_dd['nancolmask'].shape[1]):
+                if spdatacubes_dd['nancolmask'][order_ind,ipix] == True:
+                    pre_pca_mask_nans[ipix] = True
+                    
+        pre_pca_mask = np.logical_or(pre_pca_mask_tell, pre_pca_mask_nans)
         return pre_pca_mask
         
           
@@ -217,7 +232,7 @@ class Data:
 
         # Perform the multilinear regression to the datacube (note that this is not the standardised datacube but the raw datacube)
         datacube_fit = stc.linear_regression(X=pca_eigenvectors, Y=datacube)
-        datacube_detrended = datacube/datacube_fit - 1.
+        datacube_detrended = datacube/(datacube_fit+1e-100) - 1.
 
         ## Apply post PCA mask to zero out wavelength channels that were not corrected properly. 
         # Automatically detect these channels by checking if the variance of a channel is larger than sigma times 

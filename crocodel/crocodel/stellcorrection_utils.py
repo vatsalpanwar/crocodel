@@ -368,7 +368,7 @@ def standardise_data(datacube=None):
         fStd[:,i] -= np.mean(fStd[:,i])
         # This is the biased stdev (normalised by nx rather than nx-1)
         # It needs changing to match CORRELATE.pro
-        fStd[:,i] /= np.std(fStd[:,i])
+        fStd[:,i] /= np.std(fStd[:,i]) + 1e-100
     fStd = np.nan_to_num(fStd,0.) ## This is in case a whole spectral channel was set to zero pre-standardisation, which can lead to some spectral channels being nans. 
     return fStd
 

@@ -125,7 +125,8 @@ if not os.path.isfile(savedir+'datadetrend_dd.npy'):
     for date in dates:
         datadetrend_dd[date]['phases'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['phases']
         datadetrend_dd[date]['berv'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['bary_RV']
-        
+        print('Date: ', date)
+        print('phases: ', datadetrend_dd[date]['phases'])
         post_pca_mask, colmask, data_wavsoln, datacube, datacube_mean_sub, datacube_fit, datacube_detrended, pca_eigenvectors = [],[],[],[],[],[],[],[]
         
         for ind in range(config_dd['data'][INST_GLOBAL]['N_order_all']):
@@ -208,7 +209,10 @@ Kp_range_bound, Kp_step = config_dd_global['data'][INST_GLOBAL]['cross_correlati
 Vsys_range = np.arange(Vsys_range_bound[0], Vsys_range_bound[1], Vsys_step)
 Vsys_range_trail = np.arange(Vsys_range_bound_trail[0], Vsys_range_bound_trail[1], Vsys_step)
 Kp_range = np.arange(Kp_range_bound[0], Kp_range_bound[1], Kp_step)
-
+try:
+    phase_range = config_dd_global['data'][INST_GLOBAL]['cross_correlation_params']['phase_range']
+except:
+    phase_range = None ### will summ across all phases in the data.
 
 ############################################################################################################################################################################
 ############################################################################################################################################################################
@@ -305,7 +309,12 @@ plt.plot(model_ind_dd['all_species']['wav_nm'],
          model_ind_dd['all_species']['spec'], color = 'xkcd:green', linewidth = 0.5 ) 
     
 plt.xlabel('Wavelength [nm]')
-plt.ylabel('Fp/Fs')
+if config_dd_global['data'][INST_GLOBAL]['method'] == 'transmission':
+    plt.ylabel('(Rp/Rs)^2')
+    plt.ylim(ymin = 0.95)
+else:
+    plt.ylabel('Fp/Fs')
+
 plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
     
 # ############ Plot the model and the data across all orders ########### 
@@ -395,57 +404,55 @@ else:
     ##############################################################################
 ### Compute the contribution functions and then overplot them with the TP
     ##############################################################################
-    contri_dict = {}
-    contri_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
-    contri_dict['wav_nm'] = model_ind_dd['all_species']['wav_nm']
-    contri_dict['tau'] = tau
-    contri_dict['P_array'] = P_array
-    contri_dict['P_tau'] = P_tau
-    contri_dict['contri_func'] = contri_func
-    np.save(savedir + 'contri_func_dict.npy', contri_dict) 
+    # contri_dict = {}
+    # contri_func, tau, P_array, P_tau = planet_model_dict_global[INST_GLOBAL].get_contribution_function()
+    # contri_dict['wav_nm'] = model_ind_dd['all_species']['wav_nm']
+    # contri_dict['tau'] = tau
+    # contri_dict['P_array'] = P_array
+    # contri_dict['P_tau'] = P_tau
+    # contri_dict['contri_func'] = contri_func
+    # np.save(savedir + 'contri_func_dict.npy', contri_dict) 
 
     ####### Plot the contribution function ################################################
 
     ##### First plot the 2D map of the optical depth 
-    plt.figure(figsize = (16,10))
-    plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array, np.log10(tau) )
-    plt.xlabel('Wavelength [nm]')
-    plt.ylabel('Pressure [bar]')
-    plt.yscale('log')
-    plt.ylim(max(P_array),min(P_array))
-    # plt.xlim(xmin = 2400., xmax = 2410.)
-    plt.colorbar(label = 'log$_{10}$tau')
-    plt.savefig(savedir + 'tau_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
+    # plt.figure(figsize = (16,10))
+    # plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array, np.log10(tau) )
+    # plt.xlabel('Wavelength [nm]')
+    # plt.ylabel('Pressure [bar]')
+    # plt.yscale('log')
+    # plt.ylim(max(P_array),min(P_array))
+    # # plt.xlim(xmin = 2400., xmax = 2410.)
+    # plt.colorbar(label = 'log$_{10}$tau')
+    # plt.savefig(savedir + 'tau_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
 
     ##### Plot the 2D map of the contribution function (without blackbody)
-    # import pdb
-    # pdb.set_trace()
-    plt.figure(figsize = (16,10))
-    plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array[1:], contri_func.T )
-    plt.xlabel('Wavelength [nm]')
-    plt.ylabel('Pressure [bar]')
-    plt.yscale('log')
-    plt.ylim(max(P_array[1:]),min(P_array[1:]))
-    # plt.xlim(xmin = 2400., xmax = 2410.)
-    plt.colorbar(label = 'CF')
-    plt.savefig(savedir + 'cf_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
+    # plt.figure(figsize = (16,10))
+    # plt.pcolormesh(model_ind_dd['all_species']['wav_nm'], P_array[1:], contri_func.T )
+    # plt.xlabel('Wavelength [nm]')
+    # plt.ylabel('Pressure [bar]')
+    # plt.yscale('log')
+    # plt.ylim(max(P_array[1:]),min(P_array[1:]))
+    # # plt.xlim(xmin = 2400., xmax = 2410.)
+    # plt.colorbar(label = 'CF')
+    # plt.savefig(savedir + 'cf_map.png', dpi = 300, format = 'png', bbox_inches = 'tight')
 
-    ##### Plot the histogram of the pressure values 
-    plt.figure(figsize = (12,10))
-    plt.hist( P_tau, histtype = 'step', bins = 50, density = True, alpha = 1., color = 'k' )
-    plt.xscale('log')
-    plt.xlabel('Pressure for tau = 2/3 [bar]')
-    plt.ylabel('Probability Density')
-    plt.savefig(savedir + 'contribution_function_hist.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
+    # ##### Plot the histogram of the pressure values 
+    # plt.figure(figsize = (12,10))
+    # plt.hist( P_tau, histtype = 'step', bins = 50, density = True, alpha = 1., color = 'k' )
+    # plt.xscale('log')
+    # plt.xlabel('Pressure for tau = 2/3 [bar]')
+    # plt.ylabel('Probability Density')
+    # plt.savefig(savedir + 'contribution_function_hist.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
 
-    ##### Plot the tau = 2./3. pressure points across the wavelength range 
-    plt.figure(figsize = (12,10))
-    plt.plot( model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k' )
-    plt.yscale('log')
-    plt.ylim(max(tp_dict['press_median']),min(tp_dict['press_median']))
-    plt.xlabel('Wavelength [nm]')
-    plt.ylabel('Pressure for tau = 2/3 [bar]')
-    plt.savefig(savedir + 'P_tau_2by3_surface.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
+    # ##### Plot the tau = 2./3. pressure points across the wavelength range 
+    # plt.figure(figsize = (12,10))
+    # plt.plot( model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k' )
+    # plt.yscale('log')
+    # plt.ylim(max(tp_dict['press_median']),min(tp_dict['press_median']))
+    # plt.xlabel('Wavelength [nm]')
+    # plt.ylabel('Pressure for tau = 2/3 [bar]')
+    # plt.savefig(savedir + 'P_tau_2by3_surface.pdf', dpi = 300, format = 'pdf', bbox_inches = 'tight')
 
     ####### Plot the TP profile ######### 
     ## with the histogram of P for tau = 2/3 across all the surfaces 
@@ -460,7 +467,7 @@ else:
     plt.xlabel('Temperature [K]')
     plt.ylabel('Pressure [bar]')
     ax2 = plt.gca().twiny()
-    ax2.hist( P_tau, histtype = 'step', bins = 100, density = True, alpha = 1., color = 'k' , orientation = 'horizontal')
+    # ax2.hist( P_tau, histtype = 'step', bins = 100, density = True, alpha = 1., color = 'k' , orientation = 'horizontal')
     ax2.set_xlabel('Probability Density')
     plt.savefig(savedir + 'TP_profile_contribution_function_hist.pdf', format='pdf', dpi=300, bbox_inches='tight')
 
@@ -475,42 +482,9 @@ else:
     plt.xlabel('Temperature [K]')
     plt.ylabel('Pressure [bar]')
     ax2 = plt.gca().twiny()
-    ax2.plot(model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k', alpha = 0.6)
+    # ax2.plot(model_ind_dd['all_species']['wav_nm'], P_tau, color = 'k', alpha = 0.6)
     ax2.set_xlabel('Wavelength [nm]')
     plt.savefig(savedir + 'TP_profile_tau_2by3_pressures.pdf', format='pdf', dpi=300, bbox_inches='tight')
-
-exit()
-######################################################################################
-########### Compute the CCF trail matrix.
-######################################################################################
-
-# print('Trail matrix has been computed before already.')
-# print('Computing the trail matrix, both without and with model reprocessing ...')
-# if fix_model:
-#     fixed_model_wav, fixed_model_spec =  wav_nm, spec
-#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix(datadetrend_dd = datadetrend_dd_global, 
-#                                                 order_inds = order_inds, 
-#                         Vsys_range = Vsys_range_trail, savedir = savedir, 
-#                         fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec, plot = False )
-    
-#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
-#                                                     order_inds = order_inds, 
-#                             Vsys_range = Vsys_range_trail, savedir = savedir, 
-#                             fixed_model_wav = fixed_model_wav, fixed_model_spec = fixed_model_spec )
-#     print('Done!')
-# else:
-#     for pname in fix_param_dict.keys():
-#         if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
-#             print(pname, fix_param_dict[pname])
-#             setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**fix_param_dict[pname])
-#         else:
-#             setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
-
-#     planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd_global, 
-#                                                     order_inds = order_inds, 
-#                             Vsys_range = Vsys_range_trail, savedir = savedir)
-#     print('Done!')
-
 
 ##############################################################################
 ### Compute the 2D KpVsys maps and also plot them for all species included
@@ -535,19 +509,19 @@ if not fix_model:
         print('Using fast method as test first ...')
         planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                        Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+                        Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
         
         print('Using slow method ...')
         KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
                                                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir)
+                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir, phase_range = phase_range)
 
         planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
     elif KpVsys_method == 'fast':
         print('Using fast method ...')
         planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
                                                             datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+                                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
 
 else:
     print('Computing KpVsys maps for fixed model ...')

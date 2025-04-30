@@ -214,7 +214,7 @@ class Model:
         self.use_stellar_phoenix = self.config['model']['use_stellar_phoenix']
         if self.use_stellar_phoenix:
             phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
-            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./self.vel_c_SI) ## converting to J/m2/s
+            phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./self.vel_c_SI) ## converting from 'erg/s/cm^2/cm' to J/m2/s
             stellar_spectrum_smooth_length = self.config['model']['stellar_spectrum_smooth_length']
             
             start_ind, stop_ind = np.argmin(abs(1e6*phoenix_model_wave_inp - 0.9)), np.argmin(abs(1e6*phoenix_model_wave_inp - 3.)) ## Splice the PHOENIX model between 0.9 to 3 micron 
@@ -297,11 +297,14 @@ class Model:
     
     ####### Rotation kernel #######
     def rotation(self, vsini = None, model_wav = None, model_spec = None):
-        assert(vsini >= 1.0)
-        # assert(atm.params["rot"]>=1.0)
-        rker = self.get_rotation_kernel(vsini, model_wav)
-        # hlen = int((len(rker)-1)/2)
-        spec_conv = fftconvolve(model_spec, rker, mode="same")
+        # assert(vsini >= 1.0)
+        if vsini < 1.0:
+            # assert(atm.params["rot"]>=1.0)
+            rker = self.get_rotation_kernel(vsini, model_wav)
+            # hlen = int((len(rker)-1)/2)
+            spec_conv = fftconvolve(model_spec, rker, mode="same")
+        else:
+            spec_conv = model_spec
         # import pdb
         # pdb.set_trace()
         # return spec_conv[hlen:-hlen], model_wav[hlen:-hlen]
@@ -633,7 +636,7 @@ class Model:
 
         :param Rs: Stellar radius, in terms of solar radius.
         :type Rs: float
-        :param lam: Wavelength range, in micron.
+        :param lam: Wavelength range, in metres!
         :type lam: array
         :param T: Effective stellar temperature.
         :type T: float
@@ -792,7 +795,7 @@ class Model:
         datamodel_fit = stc.linear_regression(X=pca_eigenvectors,
                                                 Y=datamodel)
         # Detrend data+model
-        datamodel_detrended = datamodel/datamodel_fit - 1.
+        datamodel_detrended = datamodel/(datamodel_fit+1e-100) - 1.
 
         # Zero out the same channels/columns as done for the datacube (including the ones post PCA)
         datamodel_detrended[:, post_pca_mask] = 0.
@@ -860,9 +863,11 @@ class Model:
                                                            model_phoenix_flux = self.phoenix_model_flux, 
                                                            model_phoenix_wav = self.phoenix_model_wav)
             
-            ### Rotationally broaden the planetary spectrum 
+            ### Rotationally broaden the planetary spectrum
+             
             model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
                                                        model_wav = model_wav, model_spec = model_Fp_orig)
+            
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spec = None
         else:
@@ -1085,30 +1090,30 @@ class Model:
             # First the CCF trail matrix for plot individual dates and orders 
             for date in ccf_trail_matrix_dd.keys():
                 plot_type = 'pcolormesh'
-                subplot_num = len(ccf_trail_matrix_dd[date].keys()) ## Make a subplot for each detector
+                # subplot_num = len(ccf_trail_matrix_dd[date].keys()) ## Make a subplot for each detector
                 
-                fig, axx = plt.subplots(subplot_num, 1, figsize=(5, 5*subplot_num))
+                # fig, axx = plt.subplots(subplot_num, 1, figsize=(5, 5*subplot_num))
 
-                plt.subplots_adjust(hspace=0.8)
+                # plt.subplots_adjust(hspace=0.8)
 
-                for axis_ind, ind in zip(range(subplot_num), order_inds):
-                    hnd1 = crocut.subplot_cc_matrix(axis=axx[axis_ind],
-                                                cc_matrix=ccf_trail_matrix_dd[date][ind],
-                                                phases=datadetrend_dd[date]['phases'],
-                                                velocity_shifts=Vsys_range,
-                                                ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
-                                                title= 'Date: '+ date +'; Detector: ' + str(ind) ,
-                                                setxlabel=True, plot_type = plot_type)
-                    fig.colorbar(hnd1, ax=axx[axis_ind])
+                # for axis_ind, ind in zip(range(subplot_num), order_inds):
+                #     hnd1 = crocut.subplot_cc_matrix(axis=axx[axis_ind],
+                #                                 cc_matrix=ccf_trail_matrix_dd[date][ind],
+                #                                 phases=datadetrend_dd[date]['phases'],
+                #                                 velocity_shifts=Vsys_range,
+                #                                 ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                #                                 title= 'Date: '+ date +'; Detector: ' + str(ind) ,
+                #                                 setxlabel=True, plot_type = plot_type)
+                #     fig.colorbar(hnd1, ax=axx[axis_ind])
 
-                    axx[axis_ind].set_ylabel(r'$\phi$')
-                    axx[axis_ind].set_xlabel(r'V$_{rest}$ [km/s]')
+                #     axx[axis_ind].set_ylabel(r'$\phi$')
+                #     axx[axis_ind].set_xlabel(r'V$_{rest}$ [km/s]')
 
-                plt.savefig(savedir + 'ccf_trail_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
-                plt.close()
+                # plt.savefig(savedir + 'ccf_trail_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
+                # plt.close()
             
                 # Plot the total trail matrix across all dates and detectors 
-                plt.figure(figsize = (10,5))
+                plt.figure(figsize = (15,5))
                 ax = plt.gca()
                 hnd1 = crocut.subplot_cc_matrix(axis=ax,
                                 cc_matrix=ccf_trail_matrix_dd[date]['total'],
@@ -1252,7 +1257,7 @@ class Model:
     
     def compute_2D_KpVsys_map(self, theta_fit_dd = None, posterior = 'median', datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, species_info = None, 
-                             fixed_model_spec = None, fixed_model_wav = None, 
+                             fixed_model_spec = None, fixed_model_wav = None, phase_range = None
                              ):
         """
         
@@ -1359,13 +1364,20 @@ class Model:
 
             model_FpFs_save = model_spec
             
-            
+
+          
         # Dictionaries to store the R, C, and logL maps 
         R_dd, C_dd, logL_dd = {}, {}, {}
         
         # Loop over dates
         for dt, date in enumerate(datelist):
             print('Date: ', date)
+            phases = datadetrend_dd[date]['phases']
+            phase_mask = np.ones(len(phases), dtype = bool)
+            if phase_range is not None:
+                phase_mask = np.logical_and(phases > phase_range[0], phases < phase_range[1])
+            print('Total phases: ', len(phases))
+            print('Summing signal across: ', np.sum(phase_mask))
             
             # Dictionaries to store the R, C, and logL maps for this date
             R_dd[date], C_dd[date], logL_dd[date] = {}, {}, {}
@@ -1405,6 +1417,7 @@ class Model:
 
                         # Loop over time
                         for it in range(nspec):
+                            # if phase_mask[it] == True:
                             model_spec_flux_shift = model_reprocess[it, :]
                             # Mean subtract the model with the zero values ignored
                             model_spec_flux_shift = crocut.sub_mask_1D(model_spec_flux_shift, avoid_mask)
@@ -1412,9 +1425,11 @@ class Model:
                             # Compute R, C, logL accounting for the correct number of non-zero data points (only those that actually contribute to the CCF finitely, so all channels besides avoid_mask)
                             R_per_spec[it], C_per_spec[it], logL_per_spec[it] = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, ~avoid_mask],
                                                                                                 model=model_spec_flux_shift[~avoid_mask])
+                            # else:
+                            #     R_per_spec[it], C_per_spec[it], logL_per_spec[it] = 0., 0., 0.
                             
                         # Sum over all exposures
-                        R_dd[date][ind][iKp, iVsys], C_dd[date][ind][iKp, iVsys], logL_dd[date][ind][iKp, iVsys] = np.sum(R_per_spec), np.sum(C_per_spec), np.sum(logL_per_spec) 
+                        R_dd[date][ind][iKp, iVsys], C_dd[date][ind][iKp, iVsys], logL_dd[date][ind][iKp, iVsys] = np.sum(R_per_spec[phase_mask]), np.sum(C_per_spec[phase_mask]), np.sum(logL_per_spec[phase_mask]) 
 
                     
         ## Sum across each detector for all dates 
@@ -1472,7 +1487,7 @@ class Model:
                                                            datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
                              species_info = None, vel_window = None, 
-                            fixed_model_spec = None, fixed_model_wav = None):
+                            fixed_model_spec = None, fixed_model_wav = None, phase_range = None):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
 
@@ -1632,9 +1647,23 @@ class Model:
                         #### Compute the cross correlation value between the shifted model and the data
                         
                         if it == 0 and iv == 0:
-                            plt.figure(figsize = (10,8))
-                            plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
-                            plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
+                            plt.figure(figsize=(12, 6))
+                            plt.subplot(1, 2, 1)
+                            plt.plot(data_wavsoln[ind, ~avoid_mask], datacube_mean_sub[ind, it, ~avoid_mask], color='k', label='data')
+                            plt.legend()
+                            plt.xlabel('Wavelength [nm]')
+                            plt.ylabel('Flux')
+                            plt.title('Data')
+
+                            plt.subplot(1, 2, 2)
+                            plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color='r', label='model')
+                            plt.legend()
+                            plt.xlabel('Wavelength [nm]')
+                            plt.ylabel('Flux')
+                            plt.title('Model')
+                            # plt.figure(figsize = (10,8))
+                            # plt.plot(data_wavsoln[ind,~avoid_mask], datacube_mean_sub[ind,it,~avoid_mask], color = 'k', label = 'data')
+                            # plt.plot(data_wavsoln_shift[~avoid_mask], model_spec_flux_shift[~avoid_mask], color = 'r', label = 'model')
                             plt.legend()
                             plt.savefig(savedir + 'data_model_comp_order_'+str(ind)+'.png', format='png', dpi=300, bbox_inches='tight')  
                         plt.close('all')
@@ -1646,7 +1675,7 @@ class Model:
         
         ###### Plot the CC trail matrix to test 
         for dt, date in enumerate(datelist):
-            fig, axx = plt.subplots(figsize = (10,8))
+            fig, axx = plt.subplots(figsize = (15,5))
             hnd1 = crocut.subplot_cc_matrix(axis=axx,
                                         cc_matrix=CC_matrix_all_dates[dt],
                                         phases=datadetrend_dd[date]['phases'],
@@ -1655,7 +1684,12 @@ class Model:
                                         title= 'Total ; Date: '+ date ,
                                         setxlabel=True, plot_type = 'pcolormesh')
             fig.colorbar(hnd1, ax=axx)
-
+            velocity_trail = []
+            for it in range(len(datadetrend_dd[date]['phases'])):
+                V_planet =  self.Kp * np.sin(2. * np.pi * phases[it]) + self.Vsys + berv[it]
+                velocity_trail.append(V_planet)
+            velocity_trail = np.array(velocity_trail)
+            plt.plot(velocity_trail, phases, color = 'w', lw = 2, linestyle = 'dashed') 
             # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
             axx.set_ylabel(r'$\phi$')
             axx.set_xlabel(r'V$_{sys}$ [km/s]')
@@ -1664,7 +1698,7 @@ class Model:
         
         ###### Plot the logL trail matrix to test
         for dt, date in enumerate(datelist):
-            fig, axx = plt.subplots(figsize = (10,8))
+            fig, axx = plt.subplots(figsize = (15,5))
             hnd1 = crocut.subplot_cc_matrix(axis=axx,
                                         cc_matrix=logL_matrix_all_dates[dt],
                                         phases=datadetrend_dd[date]['phases'],
@@ -1688,6 +1722,13 @@ class Model:
         
         CC_KpVsys_total, logL_KpVsys_total = np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
         ## Start loop over dates 
+        print('phases:', phases)
+        phase_mask = np.ones(len(phases), dtype = bool)
+        if phase_range is not None:
+            phase_mask = np.logical_and(phases > phase_range[0], phases < phase_range[1])
+        print('Total phases: ', len(phases))
+        print('Summing signal across: ', np.sum(phase_mask))
+        
         for dt, date in enumerate(datelist):
             CC_KpVsys, logL_KpVsys = np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
             phases = datadetrend_dd[date]['phases']
@@ -1695,16 +1736,16 @@ class Model:
             for iKp, Kp in enumerate(Kp_range):
                 CC_matrix_shifted, logL_matrix_shifted = np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
                 for it in range(nspec):
-                    Vp = Kp * np.sin(2. * np.pi * phases[it])
-                    Vsys_shifted = Vsys_range + Vp  + berv[it] 
-                    # print('Vp:', Vp, 'BERV: ', berv[it])
-                    # print('Vsys_shifted ', max(Vsys_shifted), min(Vsys_shifted) )
-                    func_CC = interpolate.interp1d(Vsys_range, CC_matrix_all_dates[dt][it, :]) 
-                    func_logL = interpolate.interp1d(Vsys_range, logL_matrix_all_dates[dt][it, :])
+                    if phase_mask[it] == True:
+                        Vp = Kp * np.sin(2. * np.pi * phases[it])
+                        Vsys_shifted = Vsys_range + Vp  + berv[it] 
+                        # print('Vp:', Vp, 'BERV: ', berv[it])
+                        # print('Vsys_shifted ', max(Vsys_shifted), min(Vsys_shifted) )
+                        func_CC = interpolate.interp1d(Vsys_range, CC_matrix_all_dates[dt][it, :]) 
+                        func_logL = interpolate.interp1d(Vsys_range, logL_matrix_all_dates[dt][it, :])
+                        CC_matrix_shifted[it,:] = func_CC(Vsys_shifted[vel_window[0]:vel_window[1]])
+                        logL_matrix_shifted[it,:] = func_logL(Vsys_shifted[vel_window[0]:vel_window[1]])
                     
-                    CC_matrix_shifted[it,:] = func_CC(Vsys_shifted[vel_window[0]:vel_window[1]])
-                    logL_matrix_shifted[it,:] = func_logL(Vsys_shifted[vel_window[0]:vel_window[1]])
-                
                 CC_KpVsys[iKp,:], logL_KpVsys[iKp,:] = np.sum(CC_matrix_shifted, axis = 0), np.sum(logL_matrix_shifted, axis = 0)
             CC_KpVsys_total+=CC_KpVsys
             logL_KpVsys_total+=logL_KpVsys

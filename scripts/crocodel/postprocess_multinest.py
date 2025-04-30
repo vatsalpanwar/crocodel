@@ -361,7 +361,7 @@ for i in range(len(chain_inds)):
 plt.plot(temp_list['median'],press_list['median'], color = 'k' )
 
 plt.ylim(press_list['median'].max(), press_list['median'].min())
-plt.xlim(1600.,3500.)
+# plt.xlim(1600.,3500.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
@@ -374,7 +374,7 @@ plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['tem
 plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
 
 plt.ylim(press_list['median'].max(), press_list['median'].min())
-plt.xlim(1600.,3500.)
+# plt.xlim(1600.,3500.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
@@ -601,7 +601,7 @@ planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_r
                                     posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window)
 
-exit()
+# exit()
 
 ################################################################################
 ################################################################################
@@ -616,24 +616,25 @@ planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, poste
 ### Compute the 2D KpVsys maps and also plot them for individual species
 ##############################################################################
 for spnm in SP_INDIV:
-    print('Excluding:  ', spnm)
-    # spnm_exclude = []
-    # for spnm_ex in SP_INDIV:
-    #     if spnm_ex != spnm:
-    #         spnm_exclude.append(spnm_ex)
-    
-    print('Using fast method first ...')
-    planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = fit_param_dict, 
-                                    posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-            Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window,
-            exclude_species = [spnm], species_info = spnm)
-    
-    print('Using slow method next ...')
-    KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = 'median', datadetrend_dd = datadetrend_dd, 
-                                                                              order_inds = order_inds, 
-                                Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir, 
-                                exclude_species = [spnm], species_info = spnm)
-    planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = 'median', 
-                                                           theta_fit_dd = fit_param_dict, savedir = KpVsys_savedir, species_info = spnm)
+    if spnm not in ['h2', 'he']:
+        print('Excluding:  ', spnm)
+        # spnm_exclude = []
+        # for spnm_ex in SP_INDIV:
+        #     if spnm_ex != spnm:
+        #         spnm_exclude.append(spnm_ex)
+        
+        print('Using fast method first ...')
+        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = fit_param_dict, 
+                                        posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window,
+                exclude_species = [spnm], species_info = spnm)
+        
+        print('Using slow method next ...')
+        KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = fit_param_dict, posterior = 'median', datadetrend_dd = datadetrend_dd, 
+                                                                                order_inds = order_inds, 
+                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = KpVsys_savedir, 
+                                    exclude_species = [spnm], species_info = spnm)
+        planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = 'median', 
+                                                            theta_fit_dd = fit_param_dict, savedir = KpVsys_savedir, species_info = spnm)
 
     
