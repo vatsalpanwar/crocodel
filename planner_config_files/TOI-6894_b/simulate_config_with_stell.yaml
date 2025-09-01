@@ -1,0 +1,84 @@
+instrument: 'igrins'
+
+snr_info:
+  output_path: '/home/astro/phsprd/proposals/Gemini_FT/TOI-6894b_IGRINS-2/simulated_data/igrins-2_itc_outputs/calc_2_texp-150/'
+  
+  T_exp: 150 ###
+  
+  # overhead_per_exp: 25.15 ## 11.6 + 10 + 7.1/2 ## in seconds ; for IGRINS-2 it is 7.1 seconds per AB pair 
+  overhead_per_exp: 47.5 ### 
+simulation_info:
+  
+  boost_signal_factor: 1.
+
+  infostring: 'TOI-6894b_IGRINS-2_texp-150'
+
+  N_PCA: 4
+  
+  noise: 'photon_noise'
+  
+  include_star: False
+  
+  include_tellurics: False ## Not used now, mark it True in future if you want to compute it yourself separately (when set False, just use IGRINS ITC output which has this included). 
+  
+  snr_thresh: 1.
+  
+  N_visit: 2 ## If you want to average over two visits (DO THIS NEXT)
+  
+  savedir: '/home/astro/phsprd/proposals/Gemini_FT/TOI-6894b_IGRINS-2/results/'
+  
+  CC_species: ['all', 'h2o', 'co', 'ch4', 'nh3', 'co2', 'hcn', 'h2s']
+
+planet_info:
+  
+  method: 'transmission'
+
+  transit_duration: 1.422 ## Hours
+  
+  P_orb: 3.37077196 ## Days 
+  RpRs: 0.3860
+  a_Rs: 24.59
+  inc: 89.58
+  ecc: 0.
+  w: 90.
+  
+  
+  
+  phase_range: [-0.00878, 0.00878] ### In future calculate the phase range based on the date provided in the simulation info
+  
+  Kp_true: 84.04
+  
+  Vsys_true: 15.826 ## ESPRESSO
+  
+  Vsys_range: [-300., 300.] ## To compute the trail matrix
+  Vsys_step: 1.
+  vel_window: [250,-250] ## Windowing the Vsys_range to a smaller range to make the KpVsys map
+  
+  Kp_range: [10., 200.]
+  Kp_step: 1.
+  
+  model_dir: '/home/astro/phsprd/proposals/Gemini_FT/TOI-6894b_IGRINS-2/models/'
+
+  inject_model_path: 'output_TOI-6894_Tau_b_IGRINS_proposal_logZ_0.0_cl_P_0.0_transmission/'
+  inject_model_infostring: 'INJ_logZ_0.0_cl_P_0.0_transmission'
+
+  cross_correlate_model_path: 'output_TOI-6894_Tau_b_IGRINS_proposal_logZ_0.0_cl_P_0.0_transmission/'
+  cross_correlate_model_infostring: 'CC_logZ_0.0_cl_P_0.0_transmission'
+    
+  model_config: ' ' ## Add path to model config file, which can be used to load the model configuration and calculate a 1D model grid for a single varying parameter; not used right now.
+  
+  ##### Below not in use yet 
+  posterior_params: 
+    'C_to_O' : [0., 1., 0.01]
+    'logZ_planet': [-2., 2., 0.01] #### Parameters for 
+  
+  
+telluric_info:
+  pwv: 3.
+  ### In future calculate the airmass here based on a date keyword provided in the simulation info 
+  
+star_info:
+  T_eff: 5000
+  log_g: 4.
+  met: 0.
+  

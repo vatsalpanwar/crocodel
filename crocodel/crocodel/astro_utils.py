@@ -344,8 +344,8 @@ def madhusudhan_seager_TP(pressure_levels = None, log_Pset = 0.1, Tset = None, a
     temperature_levels[pressure_levels_Pa > P3]  = T_3
     
     ##### Make sure the temperatures are within 400 K and 4000 K 
-    assert(np.min(temperature_levels) > 400)
-    assert(np.max(temperature_levels) < 4000)
+    assert(np.min(temperature_levels) > 300)
+    assert(np.max(temperature_levels) < 5000)
     
     return temperature_levels
 

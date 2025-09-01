@@ -351,7 +351,8 @@ pymultinest.run(log_likelihood_multinest,
                 outputfiles_basename = outputfiles_basename, ## savedir + infostring + 'multinest_output_', 
                 resume = resume, 
                 verbose = True, n_live_points = N_live_points, 
-                multimodal = False, importance_nested_sampling = False)
+                multimodal = False, 
+                importance_nested_sampling = False)
 json.dump(parameters, open(savedir + infostring + 'multinest_output_' + 'params.json', 'w')) # save parameter names
 globalEnd = time.time()
 print('Total computation took {:5} seconds'.format(globalEnd-globalStart))

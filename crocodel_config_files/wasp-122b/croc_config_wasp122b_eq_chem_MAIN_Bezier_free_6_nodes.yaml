@@ -2,7 +2,7 @@ infostring:
   # info: 'IGRINS_WASP-122b_free-chem_H2O-dissoc_updated-Fp_star-PHOENIX_vsini-7.7_logfs_free_Nlive_1000_'
   # info: 'TEST_INTERP'
   # info: 'IGRINS_WASP-122b_POKAZATEL_free-chem_H2O-dissoc_updated-Fp_BB_vsini-7.7_free_Nlive_1000_'
-  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_eq_chem_H_minus_proper_Bezier_free_6_nodes_'
+  info: 'IGRINS_WASP-122b_POKAZATEL_MAIN_Rodriguez_params_eq_chem_Bezier_free_6_nodes_multimodal_P0P5_fixed_True_'
   N_PCA_info: '6_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -237,7 +237,24 @@ model:
   T4: 3200.
   log_P4: -5.5
   T5: 3200.
-  log_P5: -5.9 
+  log_P5: -6. 
+
+  # TP_type: Bezier_5_nodes
+  # ### All pressure inputs should be in bars ### 
+  # #### !!!!!!!!!! In order of increasing pressures !!!!!!!  
+  # ####(or going from top to down in altitude) #### 
+  # ##### !!!!  P3,P2,P1,P0 !!!! (P3<P2<P1<P0) 
+  # ##### More akin to how Sid does it for Linear, but reverse of the Madhusudhan_Seager profile implementation here.  
+  # T0: 3500.
+  # log_P0: 2.
+  # T1: 1500.
+  # log_P1: -1.
+  # T2: 2500. 
+  # log_P2: -5
+  # T3: 3500.
+  # log_P3: -3. 
+  # T4: 3200.
+  # log_P4: -5.5
 
   ####### Define chemistry here 
   chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
@@ -437,10 +454,10 @@ model:
       prior: Uniform
       bound: [400., 4500., 150, 10.] 
 
-    log_P0:
-      fix_test: 2.
-      prior: Uniform
-      bound: [-6., 2., 0.02, 0.001] 
+    # log_P0:
+    #   fix_test: 2.
+    #   prior: Uniform
+    #   bound: [-6., 2., 0.02, 0.001] 
 
     T1:
       fix_test: 1500.
@@ -486,10 +503,10 @@ model:
       prior: Uniform
       bound: [400., 4500., 0., 1.]
     
-    log_P5:
-      fix_test: -5.9
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
+    # log_P5:
+    #   fix_test: -6.
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
 
 
     logZ_planet:

@@ -515,8 +515,8 @@ def get_simulated_2D_CCF_igrins_stell(datacube = None, model_spec = None, data_w
     
     ## Create a spline interpolation for the model 
     if method == 'transmission':
-        # model_spl = splrep(model_wavsoln, 1. - model_spec_conv)
-        model_spl = splrep(model_wavsoln, - model_spec_conv)  ### On 28 March 2025, checked and this is the correct way (gives better closeness to the injected signal)
+        model_spl = splrep(model_wavsoln, 1. - model_spec_conv)
+        # model_spl = splrep(model_wavsoln, - model_spec_conv)  ### On 28 March 2025, checked and this is the correct way (gives better closeness to the injected signal)
     elif method == 'emission':
         model_spl = splrep(model_wavsoln, model_spec_conv)
         

@@ -18,6 +18,19 @@ from . import astro_utils as aut
 from tqdm import tqdm 
 from astropy.io import ascii as ascii_reader
 import copy
+# Matplotlib rcparams
+SMALL_SIZE = 20
+MEDIUM_SIZE = 25
+BIGGER_SIZE = 30
+
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
 
 # from astropy import units as un
 
@@ -95,6 +108,8 @@ class Model:
             
             # Make a copy of the solar abundances from FastChem
             self.solar_abundances = np.array(self.fastchem.getElementAbundances())
+            
+            
             self.logZ_planet = self.config['model']['logZ_planet']
             self.C_to_O = self.config['model']['C_to_O']
             self.use_C_to_O = self.config['model']['use_C_to_O']
@@ -116,7 +131,55 @@ class Model:
                 self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
             ## "h2" is usually not in the free abundances so get its index as well separately.
             self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
+        elif self.chemistry == 'eq_chem_ER':
+            #create a FastChem object
+            #it needs the locations of the element abundance and equilibrium constants files
+            self.include_condensation = self.config['model']['include_condensation']
             
+            if self.include_condensation:
+                self.fastchem = pyfastchem.FastChem(
+                FAST_CHEM_DIR + 'input/element_abundances/asplund_2020.dat',
+                FAST_CHEM_DIR +'input/logK/logK.dat',
+                FAST_CHEM_DIR +'input/logK/logK_condensates.dat',
+                1)
+            else:
+                self.fastchem = pyfastchem.FastChem(
+                FAST_CHEM_DIR +'input/element_abundances/asplund_2020.dat',
+                FAST_CHEM_DIR +'input/logK/logK.dat',
+                1)
+            
+            # Make a copy of the solar abundances from FastChem
+            self.solar_abundances = np.array(self.fastchem.getElementAbundances())
+            self.elemental_ratios = self.config['model']['elemental_ratios']
+            self.O_to_H = self.elemental_ratios['O_to_H']
+            self.C_to_H = self.elemental_ratios['C_to_H']
+            self.R_to_H = self.elemental_ratios['R_to_H']
+            self.refractories = self.config['model']['refractories']
+            self.use_C_to_O = False
+            
+            self.index_C = self.fastchem.getElementIndex('C')
+            self.index_O = self.fastchem.getElementIndex('O')
+            
+            for refrac in self.refractories:
+                refrac_fastchem_name = self.species_name_fastchem[refrac]
+                ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
+                setattr(self, 'index_' + refrac, ind_refrac)            
+            
+            # Create the input and output structures for FastChem
+            self.input_data = pyfastchem.FastChemInput()
+            self.output_data = pyfastchem.FastChemOutput()
+            if self.include_condensation:
+                self.input_data.equilibrium_condensation = True
+            else:
+                self.input_data.equilibrium_condensation = False
+            
+            self.species_fastchem_indices = {}
+            for sp in self.species: ## Only do this for the species we are including in the model
+                # if sp != "h_minus":
+                self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
+            ## "h2" is usually not in the free abundances so get its index as well separately.
+            self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
+
         elif self.chemistry == 'free_chem_with_dissoc':
             self.sp_dissoc_list  = self.config['model']['sp_dissoc_list']
             for sp in self.sp_dissoc_list:
@@ -167,6 +230,18 @@ class Model:
             self.log_P2 = self.config['model']['log_P2']
             self.T3 = self.config['model']['T3']
             self.log_P3 = self.config['model']['log_P3']
+        
+        elif self.TP_type == 'Bezier_5_nodes': ## In order of increasing pressures (or going from top to down in altitude) : P3,P2,P1,P0 
+            self.T0 = self.config['model']['T0']
+            self.log_P0 = self.config['model']['log_P0']
+            self.T1 = self.config['model']['T1']
+            self.log_P1 = self.config['model']['log_P1']
+            self.T2 = self.config['model']['T2']
+            self.log_P2 = self.config['model']['log_P2']
+            self.T3 = self.config['model']['T3']
+            self.log_P3 = self.config['model']['log_P3']
+            self.T4 = self.config['model']['T4']
+            self.log_P4 = self.config['model']['log_P4']
             
         elif self.TP_type == 'Bezier_6_nodes':
             self.T0 = self.config['model']['T0']
@@ -473,7 +548,7 @@ class Model:
             element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
         
         # Set the abundance of C with respect to O according to the C/O ratio
-        element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O
+        # element_abundances[self.index_C] = element_abundances[self.index_O] * self.C_to_O ## Was not commented before 16-06-2025
 
         self.fastchem.setElementAbundances(element_abundances)
         
@@ -489,6 +564,38 @@ class Model:
         
         return number_densities
     
+    def get_eqchem_ER_abundances(self):
+        """Given TP profile, and elemental ratios, compute the equilibrium chemistry abundances of the species included in the retrieval. 
+        The outputs from this can be used when constructing the abundances dictionary for GENESIS.
+
+        :return: _description_
+        :rtype: _type_
+        """
+        
+        element_abundances = np.copy(self.solar_abundances)
+  
+        # Scale the refractories by R/H ratio
+        for refrac in self.refractories:
+            ind_refrac = getattr(self, 'index_' + refrac)
+            element_abundances[ind_refrac] *= 10.**self.R_to_H
+        # Scale the C and O by their ratios to H
+        element_abundances[self.index_C] *= 10.**self.C_to_H
+        element_abundances[self.index_O] *= 10.**self.O_to_H
+        
+        self.fastchem.setElementAbundances(element_abundances)
+        
+        temp, press = self.get_TP_profile()
+        
+        self.input_data.temperature = temp
+        self.input_data.pressure = press ## pressure is already in bar as calculated by get_TP_profile
+        
+        fastchem_flag = self.fastchem.calcDensities(self.input_data, self.output_data)
+        
+        #convert the output into a numpy array
+        number_densities = np.array(self.output_data.number_densities)
+        
+        return number_densities
+        
     def dissociation(self, sp_name = 'h2o'):
         X_i = getattr(self, sp_name)
         
@@ -570,6 +677,18 @@ class Model:
             
             ####### Extracting the h_minus from the Fastchem itself.
             for sp in self.species:
+                # print(sp)
+                vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
+                X[sp] = vmr 
+            vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
+            X["h2"] = vmr_h2
+        
+        elif self.chemistry == 'eq_chem_ER':
+            number_densities = self.get_eqchem_ER_abundances()
+            gas_number_density = ( ( press ) *1e6 ) / ( self.k_B_cgs * temp )
+            ####### Extracting the h_minus from the Fastchem itself.
+            
+            for sp in self.species:
                 vmr = number_densities[:, self.species_fastchem_indices[sp]]/gas_number_density
                 X[sp] = vmr 
             vmr_h2 = number_densities[:, self.species_fastchem_indices["h2"]]/gas_number_density
@@ -595,8 +714,8 @@ class Model:
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
             spec = self.gen.genesis(abund_dict, cl_P = self.cl_P, include_cia = self.include_cia)
             spec /= ((self.R_star*6.957e8)**2.0)
-            # spec = 1.-spec
-            spec = -spec
+            spec = 1.-spec
+            # spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(abund_dict, include_cia = self.include_cia)
@@ -770,6 +889,7 @@ class Model:
         model_spec_shift_cube = np.empty((nspec, nwav))
         
         # Based on given value of Kp, shift the 1D model by the expected total velocity of the planet for each exposure
+        # print(self.Kp, self.Vsys)
         for it in range(nspec):
             RV = self.Kp * np.sin(2. * np.pi * (phases[it] + self.phase_offset)) + self.Vsys + berv[it]
             
@@ -1133,7 +1253,7 @@ class Model:
             return ccf_trail_matrix_dd
         
     def get_ccf_trail_matrix_with_model_reprocess(self, datadetrend_dd = None, order_inds = None, 
-                             Vsys_range = None, savedir = None,
+                             Vsys_range = None, Kp_range = None, savedir = None,
                              fixed_model_spec = None, fixed_model_wav = None):
         
         """For the initial set of model parameters - for each date and each detector, 
@@ -1194,28 +1314,52 @@ class Model:
         
         
         ccf_trail_matrix_dd = {}
+        ccf_trail_matrix_interp_dd = {}
+        
         # Loop over all dates 
         for date in tqdm(datelist):
             
             # Dictionary to store the CCF trail matrix for each order for the given date 
             ccf_trail_matrix_dd[date] = {}
+            ccf_trail_matrix_interp_dd[date] = {}
 
             # Loop over all orders 
             for ind in tqdm(order_inds):
                 
-                nspec, nvel  = datadetrend_dd[date]['datacube'][ind, :, :].shape[0], len(Vsys_range)
+                nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
+
+                V_pair = []
+                for iKp, Kp_val in enumerate(Kp_range):
+                    for iVsys, Vsys_val in enumerate(Vsys_range):
+                        V_pair.append((Kp_val, Vsys_val))
+                
+                V_pair = np.array(V_pair)
+                nvel = V_pair.shape[0]
+                V_total = np.zeros((nspec, nvel))
+                
+
                 
                 # Empty array to fill the CCF matrix for this order and date
                 ccf_trail_matrix_dd[date][ind] = np.empty((nspec, nvel))
-
                 # Loop over all velocities 
-                for iVsys, Vsys in enumerate(Vsys_range):
-                    setattr(self, 'Vsys', Vsys)
-                    setattr(self, 'Kp', 0.)
+                # Kp_orig, Vsys_orig = copy.deepcopy(self.Kp), copy.deepcopy(self.Vsys)
+                # for iKp, Kp_val in enumerate(Kp_range): 
+                #     for iVsys, Vsys_val in enumerate(Vsys_range):
+                        
+                for iV, V_val in enumerate(V_pair):
+                    Kp_val, Vsys_val = V_val[0], V_val[1]
+                    setattr(self, 'Vsys', Vsys_val)
+                    setattr(self, 'Kp', Kp_val)
+                    
+                    
+                    if self.use_stellar_phoenix:
+                        phoenix_modelcube_inp = phoenix_modelcube[date][ind,:,:]
+                    else:
+                        phoenix_modelcube_inp = None
                     # Compute the reprocessed model 
                     model_reprocess, avoid_mask = self.get_reprocessed_modelcube(model_spec = model_spec, model_wav = model_wav, 
                                                                                     
-                                                                                    model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube[date][ind,:,:],
+                                                                                    model_Fp = model_Fp, phoenix_modelcube = phoenix_modelcube_inp,
                                                                                     
                                                     datacube = datadetrend_dd[date]['datacube'][ind, :, :], 
                                                     datacube_detrended = datadetrend_dd[date]['datacube_detrended'][ind, :, :], 
@@ -1224,20 +1368,38 @@ class Model:
                                             colmask = datadetrend_dd[date]['colmask'][ind, :],
                                             post_pca_mask = datadetrend_dd[date]['post_pca_mask'][ind, :],
                                             phases = datadetrend_dd[date]['phases'], berv = datadetrend_dd[date]['berv'])
-                     
+                    
                     for it in range(nspec):
                         model_spec_flux_shift = model_reprocess[it, :]
                         # Mean subtract the model with the zero values ignored
                         model_spec_flux_shift = crocut.sub_mask_1D(model_spec_flux_shift, avoid_mask)
-                        ccf_trail_matrix_dd[date][ind][it, iVsys], _, _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, :],
-                                                                model=model_spec_flux_shift)
-                        # if iVsys == it == 0:
-                        #     plt.figure()
-                        #     plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], datadetrend_dd[date]['datacube_mean_sub'][ind, it, :], label = 'Data')
-                        #     plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], model_spec_flux_shift, label = 'Model')
-                        #     plt.legend()
-                        #     plt.savefig(savedir + 'ccf_trail_model_data_comparison_'+date+ '_' + str(ind) + '_'+'with_reprocess.png', 
-                        #                 format='png', dpi=300, bbox_inches='tight')
+                        _, ccf_trail_matrix_dd[date][ind][it, iV], _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, ~avoid_mask],
+                                                                model=model_spec_flux_shift[~avoid_mask])
+
+                        V_total[it, iV] = Kp_val * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it] + self.phase_offset) + Vsys_val + datadetrend_dd[date]['berv'][it]
+                
+                ##### After the velocity loop is done, interpolate the CCF trail matrix to a common velocity grid
+                V_range_common = np.arange(-100., 100., 1.)
+                ccf_trail_matrix_interp_dd[date][ind] = np.zeros((nspec, len(V_range_common)))
+                for it in range(nspec):
+                    V_total_sorted = np.sort(V_total[it, :])
+                    # Sort ccf_trail_matrix_dd[date][ind][it, :] in the same order as V_total_sorted
+                    sort_indices = np.argsort(V_total[it, :])
+                    ccf_sorted = ccf_trail_matrix_dd[date][ind][it, :][sort_indices]
+                    spl = interpolate.make_interp_spline(V_total_sorted, ccf_sorted, bc_type='natural')
+                    # Interpolate the CCF to a common velocity range
+                    ccf_trail_matrix_interp_dd[date][ind][it, :] = spl(V_range_common)
+                            
+                        
+                    #### Normalize by the mean 
+                    # ccf_trail_matrix_dd[date][ind][it, iVsys] = ccf_trail_matrix_dd[date][ind][it, iVsys] - np.mean(ccf_trail_matrix_dd[date][ind][it, iVsys])
+                    # if iVsys == it == 0:
+                    #     plt.figure()
+                    #     plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], datadetrend_dd[date]['datacube_mean_sub'][ind, it, :], label = 'Data')
+                    #     plt.plot(datadetrend_dd[date]['data_wavsoln'][ind, :], model_spec_flux_shift, label = 'Model')
+                    #     plt.legend()
+                    #     plt.savefig(savedir + 'ccf_trail_model_data_comparison_'+date+ '_' + str(ind) + '_'+'with_reprocess.png', 
+                    #                 format='png', dpi=300, bbox_inches='tight')
                         
                         
         # Sum the CCF across all orders for each date 
@@ -1248,11 +1410,74 @@ class Model:
             ccf_trail_matrix_dd[date]['total'] = ccf_trail_total
             ccf_trail_matrix_dd[date]['phases'] = datadetrend_dd[date]['phases']
             ccf_trail_matrix_dd[date]['berv'] = datadetrend_dd[date]['berv']
-        ccf_trail_matrix_dd['Vsys_range'] = Vsys_range
+        # ccf_trail_matrix_dd['Vsys_range'] = Vsys_range
+        ccf_trail_matrix_dd['V_total'] = V_total # Vsys_range
         
         np.save(savedir + 'ccf_trail_matrix_with_model_reprocess.npy', ccf_trail_matrix_dd)
         
-        return ccf_trail_matrix_dd
+        # # Sum the CCF across all orders for each date ; for the one interp to common velocity range
+        # for date in datadetrend_dd.keys():
+        #     ccf_trail_interp_total = np.zeros((nspec,len(V_range_common)))
+        #     for ind in order_inds:
+        #         ccf_trail_interp_total+=ccf_trail_matrix_interp_dd[date][ind]
+        #     ccf_trail_matrix_interp_dd[date]['total'] = ccf_trail_interp_total
+        #     ccf_trail_matrix_interp_dd[date]['phases'] = datadetrend_dd[date]['phases']
+        #     ccf_trail_matrix_interp_dd[date]['berv'] = datadetrend_dd[date]['berv']
+        # # ccf_trail_matrix_dd['Vsys_range'] = Vsys_range
+        # ccf_trail_matrix_interp_dd['V_range_common'] = V_range_common # Vsys_range
+        
+        # np.save(savedir + 'ccf_trail_matrix_with_model_reprocess_interp_common_velocity.npy', ccf_trail_matrix_interp_dd)
+        
+        
+        ###### Plot the CC trail matrix to test 
+        for dt, date in enumerate(datelist):
+            fig, axx = plt.subplots(figsize = (15,5))
+            
+            hnd1 = crocut.subplot_cc_matrix(axis=axx,
+                                        cc_matrix=ccf_trail_matrix_dd[date]['total'],
+                                        phases=datadetrend_dd[date]['phases'],
+                                        velocity_shifts=ccf_trail_matrix_dd['V_total'],
+                                        ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                        title= 'Total ; Date: '+ date ,
+                                        setxlabel=True, plot_type = 'pcolormesh')
+            fig.colorbar(hnd1, ax=axx)
+            velocity_trail = []
+            for it in range(len(datadetrend_dd[date]['phases'])):
+                V_planet =  self.Kp_pred * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it]) + self.Vsys_pred + datadetrend_dd[date]['berv'][it]
+                velocity_trail.append(V_planet)
+            velocity_trail = np.array(velocity_trail)
+            plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed') 
+            # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
+            axx.set_ylabel(r'$\phi$')
+            axx.set_xlabel(r'V$_{sys}$ [km/s]')
+            plt.savefig(savedir + 'ccf_total_trail_matrix_with_model_reprocess_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
+            plt.close()
+            
+        ###### Plot the CC trail matrix to test ; interpolated to common wavelength grid
+        # for dt, date in enumerate(datelist):
+        #     fig, axx = plt.subplots(figsize = (15,5))
+            
+        #     hnd1 = crocut.subplot_cc_matrix(axis=axx,
+        #                                 cc_matrix=ccf_trail_matrix_interp_dd[date]['total'],
+        #                                 phases=datadetrend_dd[date]['phases'],
+        #                                 velocity_shifts=ccf_trail_matrix_interp_dd['V_range_common'],
+        #                                 ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+        #                                 title= 'Total ; Date: '+ date ,
+        #                                 setxlabel=True, plot_type = 'pcolormesh')
+        #     fig.colorbar(hnd1, ax=axx)
+        #     velocity_trail = []
+        #     for it in range(len(datadetrend_dd[date]['phases'])):
+        #         V_planet =  self.Kp_pred * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it]) + self.Vsys_pred + datadetrend_dd[date]['berv'][it]
+        #         velocity_trail.append(V_planet)
+        #     velocity_trail = np.array(velocity_trail)
+        #     plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed') 
+        #     # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
+        #     axx.set_ylabel(r'$\phi$')
+        #     axx.set_xlabel(r'V$_{sys}$ [km/s]')
+        #     plt.savefig(savedir + 'ccf_total_trail_matrix_interp_with_model_reprocess_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
+        #     plt.close()
+            
+        # return ccf_trail_matrix_dd
         
     
     def compute_2D_KpVsys_map(self, theta_fit_dd = None, posterior = 'median', datadetrend_dd = None, order_inds = None, 
@@ -1646,7 +1871,8 @@ class Model:
                         model_spec_flux_shift = model_spec_flux_shift - crocut.fast_mean(model_spec_flux_shift)
                         #### Compute the cross correlation value between the shifted model and the data
                         
-                        if it == 0 and iv == 0:
+                        if it == 200 and iv == 0:
+                            plt.suptitle('Data vs Model; exposure ' + str(it) )
                             plt.figure(figsize=(12, 6))
                             plt.subplot(1, 2, 1)
                             plt.plot(data_wavsoln[ind, ~avoid_mask], datacube_mean_sub[ind, it, ~avoid_mask], color='k', label='data')
@@ -1676,6 +1902,7 @@ class Model:
         ###### Plot the CC trail matrix to test 
         for dt, date in enumerate(datelist):
             fig, axx = plt.subplots(figsize = (15,5))
+            
             hnd1 = crocut.subplot_cc_matrix(axis=axx,
                                         cc_matrix=CC_matrix_all_dates[dt],
                                         phases=datadetrend_dd[date]['phases'],
@@ -1689,11 +1916,46 @@ class Model:
                 V_planet =  self.Kp * np.sin(2. * np.pi * phases[it]) + self.Vsys + berv[it]
                 velocity_trail.append(V_planet)
             velocity_trail = np.array(velocity_trail)
-            plt.plot(velocity_trail, phases, color = 'w', lw = 2, linestyle = 'dashed') 
+            plt.plot(velocity_trail, phases, color = 'w', lw = 1, linestyle = 'dashed')
+            if self.method == 'transmission':
+                plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
+                plt.axhline(y = phase_range[1], color = 'w', lw = 2, linestyle = 'dotted')
             # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
             axx.set_ylabel(r'$\phi$')
             axx.set_xlabel(r'V$_{sys}$ [km/s]')
-            plt.savefig(savedir + 'ccf_total_trail_matrix_fast_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
+            plt.savefig(savedir + 'ccf_total_trail_matrix_fast_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
+            plt.close()
+        
+        ####### Repeat the CCF trail matrix plotting, but now with each frame normalized by its median
+        for dt, date in enumerate(datelist):
+            fig, axx = plt.subplots(figsize = (15,5))
+            cc_matrix = CC_matrix_all_dates[dt]
+            # Normalize each row by its median
+            cc_matrix_normalized = np.zeros_like(cc_matrix)
+            for it in range(cc_matrix.shape[0]):
+                cc_matrix_normalized[it, :] = cc_matrix[it, :] - np.median(cc_matrix[it, :])
+            # Plot the normalized matrix
+            hnd1 = crocut.subplot_cc_matrix(axis=axx,
+                                        cc_matrix=cc_matrix_normalized,
+                                        phases=datadetrend_dd[date]['phases'],
+                                        velocity_shifts=Vsys_range,
+                                        ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                        title= 'Total ; Date: '+ date ,
+                                        setxlabel=True, plot_type = 'pcolormesh')
+            fig.colorbar(hnd1, ax=axx)
+            velocity_trail = []
+            for it in range(len(datadetrend_dd[date]['phases'])):
+                V_planet =  self.Kp * np.sin(2. * np.pi * phases[it]) + self.Vsys + berv[it]
+                velocity_trail.append(V_planet)
+            velocity_trail = np.array(velocity_trail)
+            plt.plot(velocity_trail, phases, color = 'w', lw = 1, linestyle = 'dashed') 
+            if self.method == 'transmission':
+                plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
+                plt.axhline(y = phase_range[1], color = 'w', lw = 2, linestyle = 'dotted') 
+            # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
+            axx.set_ylabel(r'$\phi$')
+            axx.set_xlabel(r'V$_{sys}$ [km/s]')
+            plt.savefig(savedir + 'ccf_total_trail_matrix_fast_normalized_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
             plt.close()
         
         ###### Plot the logL trail matrix to test

@@ -510,7 +510,7 @@ def get_KpVsys_slow_per_detector_with_model_reprocess(datacube=None, data_wavsol
 
 
 def subplot_cc_matrix(axis=None, cc_matrix=None, phases=None, velocity_shifts=None, title=None,
-                      setxlabel=False, plot_type = 'pcolormesh', vminvmax = None):
+                      setxlabel=False, plot_type = 'pcolormesh', vminvmax = None, cmap = 'viridis', levels = [0,1,2]):
     """
     This function makes a 2D plot of a datacube with specified phases, and user specified title.
     
@@ -538,11 +538,11 @@ def subplot_cc_matrix(axis=None, cc_matrix=None, phases=None, velocity_shifts=No
     """
     if plot_type == 'pcolormesh':
         if vminvmax is None:
-            plot_hand = axis.pcolormesh(velocity_shifts, phases, cc_matrix)
+            plot_hand = axis.pcolormesh(velocity_shifts, phases, cc_matrix, cmap = cmap)
         else:
-            plot_hand = axis.pcolormesh(velocity_shifts, phases, cc_matrix, norm=mpl.colors.Normalize(vmin=vminvmax[0], vmax=vminvmax[1]), shading='auto' )
+            plot_hand = axis.pcolormesh(velocity_shifts, phases, cc_matrix, norm=mpl.colors.Normalize(vmin=vminvmax[0], vmax=vminvmax[1]), shading='auto' , cmap = cmap)
     elif plot_type == 'contourf': # Useful for sigma contours
-        plot_hand = axis.contourf(velocity_shifts, phases, cc_matrix, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20])
+        plot_hand = axis.contourf(velocity_shifts, phases, cc_matrix, levels, cmap = cmap, extend = 'max')
     axis.set_title(title)
     axis.set_ylabel(r'$\phi$')
     if setxlabel:

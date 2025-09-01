@@ -17,6 +17,8 @@ from tqdm import tqdm
 import glob
 import astropy.io.fits as fits
 import copy
+from scipy.optimize import minimize
+
 ############### ############### ############### ############### ############### ########### ############### ############### 
 ######## Modules to parse data from their raw/processed format from observatory archives ########### ############### ############### 
 ######## into spdatacubes for use in the crocodel pipeline ########### ############### ########### ############### ############### 
@@ -143,7 +145,7 @@ def get_spdatacubes_spirou(spec_dd_path = None,
 def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,  
                                          T0_inp = None, Porb = None, save = False, 
                                          savedir = None, retres = False, 
-                                         infostring = None, T0_format = None, time_index_mask = None, transit_duration = None):
+                                         infostring = None, T0_format = None, time_index_mask = None, transit_duration = None, ret_file_path = False):
     
     #### Load the first parsed datacube without NaNs and outliers 
     spec_dd_inp = np.load(spec_dd_path, allow_pickle = True).item()
@@ -201,6 +203,9 @@ def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,
         ## Populate arrays 
         times_BJD_TDB[it], Vbary[it], phases[it] = time_corrected[0].jd, Vbary_, phase
     
+    # import pdb
+    # pdb.set_trace()
+    
     airmass = None
     datestr = Time(times_BJD_TDB, format = 'jd')[0].isot.split("T")[0]
     file_name = 'spdatacube' + infostring + '_' + datestr + '_spdd.npy'
@@ -208,17 +213,23 @@ def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,
     if time_index_mask is not None:
         spec_dd_sav['spdatacube'] = spec_dd_inp['flux'][:,time_index_mask,:]
         spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
+        spec_dd_sav['file_name'] = file_name
         spec_dd_sav['airmass'] = None ## not saving airmasses for now 
         spec_dd_sav['time'] = times_BJD_TDB[time_index_mask]
+        spec_dd_sav['nod_pos'] = spec_dd_inp['nod_pos'][time_index_mask]
         spec_dd_sav['bary_RV'] = Vbary[time_index_mask]
         spec_dd_sav['phases'] = phases[time_index_mask]
+        spec_dd_sav['nancolmask'] = spec_dd_inp['nancolmask']
     else:
         spec_dd_sav['spdatacube'] = spec_dd_inp['flux']
         spec_dd_sav['wavsoln'] = spec_dd_inp['wavelength'][:,0,:]
+        spec_dd_sav['file_name'] = file_name
         spec_dd_sav['airmass'] = None ## not saving airmasses for now 
         spec_dd_sav['time'] = times_BJD_TDB
+        spec_dd_sav['nod_pos'] = spec_dd_inp['nod_pos']
         spec_dd_sav['bary_RV'] = Vbary
         spec_dd_sav['phases'] = phases
+        spec_dd_sav['nancolmask'] = spec_dd_inp['nancolmask']
         
     print('phases: ', phases)
 
@@ -241,7 +252,8 @@ def get_data_BJD_phase_Vbary_crires_plus(spec_dd_path = None,
     
     if retres:
         return spec_dd_sav['spdatacube'], spec_dd_sav['wavsoln'], times_BJD_TDB, Vbary, phases, airmass
-
+    elif ret_file_path:
+        return savedir + file_name
     
 
 ############### ############### ############### ############### ############### 
@@ -370,7 +382,17 @@ def fitting_func_data_wrap(cs_data):
         return data_int
     return fitting_func_data
 
-def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, savedir = None, normalize_data = True):
+''' Function that applies a linear streching+shift to a spectrum.
+curve_fit will fit aa and bb (intercept--shift & slope--strech) to shift and 
+stretch each spectrum in a sequence to match a "reference" spectrum. '''
+def fitting_func_data_wrap_quad(cs_data):
+    def fitting_func_data(x,  aa, bb, cc):
+        xx=aa+x*bb+cc*x**2
+        data_int=splev(xx,cs_data,der=0)	
+        return data_int
+    return fitting_func_data
+
+def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, savedir = None, normalize_data = True, retres = False, fitting_degree = 1):
     
     ##### Load the observed data 
     spdd = np.load(spdd_path, allow_pickle = True).item()
@@ -383,14 +405,17 @@ def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, save
     model_tell = fits.getdata(model_telluric_path)
     wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
     trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
     cs_tell = splrep(wl_tell, trans,s=0.0)
     
     ''' Doing some preliminary work on the fluxes to eliminate borders (low-SNR)
     and not-a-number (NaN) / negative values '''
-    wl_data = wl_data[:,100:-100]  # Cropping edges
-    data = data[:,:,100:-100]   # Cropping edges
-    data[np.isnan(data)]=0. #pruning NaN's
-    data[data <0.]=0. # purging negative values
+    
+    # wl_data = wl_data[:,100:-100]  # Cropping edges
+    # data = data[:,:,100:-100]   # Cropping edges
+    # data[np.isnan(data)]=0. #pruning NaN's
+    # data[data <0.]=0. # purging negative values
+    
     Ndet, Nphi, Npix = data.shape
     
     ''' Preliminary selection of the spectrum with the highest SNR '''
@@ -398,9 +423,9 @@ def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, save
     avgSpec = np.median(data[order,],axis=1)  # Median across wavelengths
     idxRef = avgSpec == avgSpec.max()
 
-    plt.figure()
-    plt.plot(avgSpec)
-    plt.show()
+    # plt.figure()
+    # plt.plot(avgSpec)
+    # plt.show()
     
     data_corrected=np.zeros(data.shape)
     for order in range(Ndet):    # Order loop
@@ -414,10 +439,18 @@ def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, save
             
             cs_data_ = splrep(wl0,data_to_correct/data_to_correct_max,s=0.0) #splining
             # extra_kwargs = {'cs_data':cs_data_}
-            popt, pconv =curve_fit(fitting_func_data_wrap(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
-                                  p0=np.array([0.0,1.0])) #curve fitting
-
-            data_refit = fitting_func_data_wrap(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            
+            if fitting_degree == 1:
+                popt, pconv =curve_fit(fitting_func_data_wrap(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
+                                    p0=np.array([0.0,1.0])) #curve fitting
+                print('Fitted parameters: aa = {:.3f}, bb = {:.3f}'.format(popt[0], popt[1]))
+                data_refit = fitting_func_data_wrap(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            elif fitting_degree == 2:
+                popt, pconv =curve_fit(fitting_func_data_wrap_quad(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
+                                    p0=np.array([0.0,1.0,0.0]))
+                print('Fitted parameters: aa = {:.3f}, bb = {:.3f}, cc = {:.3f}'.format(popt[0], popt[1], popt[2]))
+                data_refit = fitting_func_data_wrap_quad(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            
             
             if normalize_data:
                 data_refit = data_refit
@@ -438,6 +471,416 @@ def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, save
     spdd_wave_recalib['file_name'] = 'wave_recal_' + spdd['file_name']
     
     np.save(savedir + spdd_wave_recalib['file_name'] , spdd_wave_recalib)
+    if retres:
+        return spdd_wave_recalib
+
+
+def wavelength_recalib_Matteo_crires(spdd_path = None, model_telluric_path = None, savedir = None, normalize_data = True, retres = False, fitting_degree = 1):
+    
+    ##### Load the observed data 
+    spdd = np.load(spdd_path, allow_pickle = True).item()
+    spdd_wave_recalib = copy.deepcopy(spdd)
+    
+    wl_data = spdd['wavsoln']   # Initial wavelengths; in nm.
+    data = spdd['spdatacube']   # Corresponding fluxes; telluric saturated orders have already been removed here. 
+
+    #### Load telluric model data 
+    model_tell = fits.getdata(model_telluric_path)
+    wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
+    trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
+    trans = trans/10. # scaling to match the data 
+    cs_tell = splrep(wl_tell, trans,s=0.0)
+    
+    ''' Doing some preliminary work on the fluxes to eliminate borders (low-SNR)
+    and not-a-number (NaN) / negative values '''
+    
+    # wl_data = wl_data[:,100:-100]  # Cropping edges
+    # data = data[:,:,100:-100]   # Cropping edges
+    # data[np.isnan(data)]=0. #pruning NaN's
+    # data[data <0.]=0. # purging negative values
+    
+    Ndet, Nphi, Npix = data.shape
+    
+    ''' Preliminary selection of the spectrum with the highest SNR '''
+    order = 12   #select order index for "visual" inspection
+    avgSpec = np.median(data[order,],axis=1)  # Median across wavelengths
+    idxRef = avgSpec == avgSpec.max()
+
+    # plt.figure()
+    # plt.plot(avgSpec)
+    # plt.show()
+    
+    data_corrected=np.zeros(data.shape)
+    for order in range(Ndet):    # Order loop
+        print('- Correcting order {:02}'.format(order))
+        wl0 = wl_data[order,:]   # Starting wavelengths
+        data_to_fit = data[order,idxRef,:].flatten() # Reference spectrum 
+        for phi in range(Nphi):  # phase/time/frame loop
+            data_to_correct=data[order,phi,:]    #current spectrum to re-align (raw spectrum)
+            
+            data_to_correct_max = data_to_correct.max() ### Could check taking the median here (of all or top 5 % of the data )
+            
+            cs_data_ = splrep(wl0,data_to_correct/data_to_correct_max,s=0.0) #splining
+            # cs_data_ = splrep(wl0,data_to_correct,s=0.0) #splining
+            
+            # extra_kwargs = {'cs_data':cs_data_}
+            
+            if fitting_degree == 1:
+                popt, pconv =curve_fit(fitting_func_data_wrap(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
+                                    p0=np.array([0.0,1.0]), maxfev = 10000) #curve fitting
+                print('Fitted parameters: aa = {:.3f}, bb = {:.3f}'.format(popt[0], popt[1]))
+                data_refit = fitting_func_data_wrap(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            elif fitting_degree == 2:
+                popt, pconv =curve_fit(fitting_func_data_wrap_quad(cs_data=cs_data_), wl0, data_to_fit/data_to_fit.max(), 
+                                    p0=np.array([0.0,1.0,0.0]))
+                print('Fitted parameters: aa = {:.3f}, bb = {:.3f}, cc = {:.3f}'.format(popt[0], popt[1], popt[2]))
+                data_refit = fitting_func_data_wrap_quad(cs_data=cs_data_)(wl0, *popt) #generating "realigned" spectrum
+            
+            
+            if normalize_data:
+                data_refit = data_refit
+            else:
+                data_refit = data_to_correct_max*data_refit ### Multiplying back by the normalizing factor to retain the throughput variations 
+            
+            data_corrected[order,phi,]=data_refit #packing into another fun "Norders x Nphi x Nwavelengths" array/cube
+        # ''' Diagnostic written during 2024-03-04 meeting '''
+        # plt.figure(figsize=(20,3))
+        # plt.plot(wl0,np.mean(data_corrected[order,],axis=0),lw=0.7, label = 'data corrected')
+        # plt.plot(wl0,interpolate.splev(wl0,cs_tell),lw=0.7, label = 'telluric')
+        # plt.title('Order {:02}'.format(order))
+        # plt.legend()
+        # plt.show()
+
+    spdd_wave_recalib['wavsoln'] = wl_data
+    spdd_wave_recalib['spdatacube'] = data_corrected
+    spdd_wave_recalib['file_name'] = 'wave_recal_' + spdd['file_name']
+    
+    np.save(savedir + spdd_wave_recalib['file_name'] , spdd_wave_recalib)
+    if retres:
+        return spdd_wave_recalib
+
+
+def compute_shift_via_CC(wl0 = None, wl1 = None, data0 = None, data1 = None, test_shifts = None):
+    
+    '''Aligning data1 to data0. '''
+    
+    spl_1 = splrep(wl1, data1)
+    spl_0 = splrep(wl0, data0)
+    
+    data0_on_wl1_grid = splev(wl1, spl_0)  # Interpolating data0 onto wl1 grid 
+    
+    corr_array = np.zeros(len(test_shifts))
+    
+    for ishift in range(len(test_shifts)):
+        shifted_wl1 = wl1 + test_shifts[ishift]
+        # data0_on_wl1_grid = splev(shifted_wl1, spl_0)
+        data1_shifted = splev(shifted_wl1, spl_1)
+        corr_array[ishift] = (1./(len(wl1)))*np.dot(data0_on_wl1_grid, data1_shifted)
+    best_match_shift = test_shifts[np.argmax(corr_array)]
+    print('Best match shift: ', best_match_shift)
+        
+    return best_match_shift
+        
+
+def wavelength_recalib_crires_skycalc_cross_corr(spdd_path = None, model_telluric_path = None, savedir = None, retres = False):
+    
+    ##### Load the observed data 
+    spdd = np.load(spdd_path, allow_pickle = True).item()
+    spdd_wave_recalib = copy.deepcopy(spdd)
+    
+    wl_data = spdd['wavsoln']   # Initial wavelengths; in nm.
+    data = spdd['spdatacube']   # Corresponding fluxes; telluric saturated orders have already been removed here. 
+
+    #### Load telluric model data 
+    model_tell = fits.getdata(model_telluric_path)
+    wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
+    trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
+    trans = trans/10. # scaling to match the data 
+    cs_tell = splrep(wl_tell, trans,s=0.0)
+    
+    ''' Doing some preliminary work on the fluxes to eliminate borders (low-SNR)
+    and not-a-number (NaN) / negative values '''
+    
+    # wl_data = wl_data[:,100:-100]  # Cropping edges
+    # data = data[:,:,100:-100]   # Cropping edges
+    # data[np.isnan(data)]=0. #pruning NaN's
+    # data[data <0.]=0. # purging negative values
+    
+    Ndet, Nphi, Npix = data.shape
+    
+    ''' Preliminary selection of the spectrum with the highest SNR '''
+    # order = 12   #select order index for "visual" inspection
+    # avgSpec = np.median(data[order,],axis=1)  # Median across wavelengths
+    # idxRef = avgSpec == avgSpec.max()
+
+    ####### First figure out the wavelength solution for the reference spectrum (first exposure) 
+    shifts = np.arange(-0.020, 0.020, 0.0005)
+
+    # Get the first spectrum for this order, flattened across all orders 
+    spectrum_flat = np.zeros((Ndet * Npix, Nphi))
+    for ispec in range(Nphi):
+        temp = []
+        for iord in range(Ndet):
+            temp.extend(spdd['spdatacube'][iord, ispec, :])
+        spectrum_flat[:, ispec] = np.array(temp)
+
+    init_wlen_flat= []
+    for iord in range(Ndet):
+        init_wlen_flat.extend(spdd['wavsoln'][iord, :])
+    init_wlen_flat = np.array(init_wlen_flat)
+    spectrum_first = spectrum_flat[:, 0]
+    nwav_flat = len(init_wlen_flat)
+    
+    shift_first_exp = compute_shift_via_CC(wl0 = wl_tell, wl1 =init_wlen_flat, data0 = trans - np.max(trans), 
+                                           data1 = spectrum_first-np.max(spectrum_first), test_shifts = shifts)
+    
+    print('Shift for the first exposure: ', shift_first_exp)
+    
+    wlen_first_corr_flat = init_wlen_flat + shift_first_exp
+    
+    ####### compute the shifts for all other exposures with respect to the corrected wavelength solution for the first exposure 
+    shift_all_exp = np.zeros(Nphi)
+    shift_all_exp[0] = shift_first_exp
+    
+    # for ispec in range(Nphi):
+    #     if ispec == 0:
+    #         continue
+    #     else:
+    #         spectrum_current = spectrum_flat[:, ispec]
+    #         # shift_current = compute_shift_via_CC(wl0 = wlen_first_corr_flat, wl1 = init_wlen_flat, data0 = spectrum_first-np.max(spectrum_first), 
+    #         #                                     data1 = spectrum_current-np.max(spectrum_current), test_shifts = shifts)
+    #         shift_current = compute_shift_via_CC(wl0 = wl_tell, wl1 = init_wlen_flat, data0 = trans - np.max(trans), 
+    #                                 data1 = spectrum_current-np.max(spectrum_current), test_shifts = shifts)
+    #         shift_all_exp[ispec] = shift_current
+    #         print('Shift for exposure {:02}: '.format(ispec), shift_current)
+            
+    print(shift_all_exp)
+    
+    ###### Realign all the spectra using the measured shifts 
+    data_corrected = np.zeros(data.shape)
+    wl_corrected = np.zeros(wl_data.shape)
+    
+    for iord in range(Ndet):    # Order loop
+        print('- Correcting order {:02}'.format(iord))
+        wl0 = wl_data[iord,:]   # Starting wavelengths
+        wl_corrected[iord,:] = wl_data[iord,:] + shift_first_exp ## Same for all exposures 
+        
+        for ispec in range(Nphi):  # phase/time/frame loop
+            data_to_correct = data[iord,ispec,:]    #current spectrum to re-align (raw spectrum)
+            cs_data = splrep(wl0, data_to_correct, s=0.0)
+            
+            # wl0_shifted = wl0 + shift_all_exp[ispec]  # Shift the wavelengths
+            data_corrected[iord, ispec, :] = splev(wl_corrected[iord,:], cs_data)  # Interpolate the data onto the first exposure 
+
+    
+
+    spdd_wave_recalib['wavsoln'] = wl_corrected # wl_data
+    spdd_wave_recalib['spdatacube'] = data_corrected
+    spdd_wave_recalib['file_name'] = 'wave_recal_' + spdd['file_name']
+    
+    np.save(savedir + spdd_wave_recalib['file_name'] , spdd_wave_recalib)
+    if retres:
+        return spdd_wave_recalib
+
+
+''' Function that applies a linear streching+shift to a spectrum, and cross-correlate it with the telluric model.'''
+def compute_CC(x, spl_1, spl_0, wl1):
+    '''Aligning data1 to data0. '''
+    # spl_1 = splrep(wl1, data1) 
+    # spl_0 = splrep(wl0, data0)
+    
+    # data0_on_wl1_grid = splev(wl1, spl_0)  # Interpolating data0 onto wl1 grid 
+    
+    if len(x) == 2:
+        shift_stretch_wl1 = wl1*x[0] + x[1]
+    else:
+        shift_stretch_wl1 = wl1*x[0]
+    data0_on_wl1 = splev(wl1, spl_0)
+    data1_shift_stretch = splev(shift_stretch_wl1, spl_1)
+    CC_value = (1./(len(wl1)))*np.dot(data0_on_wl1, data1_shift_stretch)
+    # CC_value = np.dot(data0_on_wl1, data1_shift_stretch)
+
+    return -CC_value  # Negative because we want to maximize the CC value
+    
+def wavelength_recalib_crires_skycalc_CC_SS(spdd_path = None, model_telluric_path = None, savedir = None, retres = False):
+    
+    ##### Load the observed data 
+    spdd = np.load(spdd_path, allow_pickle = True).item()
+    spdd_wave_recalib = copy.deepcopy(spdd)
+    
+    wl_data = spdd['wavsoln']   # Initial wavelengths; in nm.
+    data = spdd['spdatacube']   # Corresponding fluxes; telluric saturated orders have already been removed here. 
+
+    #### Load telluric model data 
+    model_tell = fits.getdata(model_telluric_path)
+    wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
+    trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
+    trans = trans/10. # scaling to match the data 
+    cs_tell = splrep(wl_tell, trans - np.max(trans))
+    
+    # ''' Doing some preliminary work on the fluxes to eliminate borders (low-SNR)
+    # and not-a-number (NaN) / negative values '''
+    
+    # wl_data = wl_data[:,100:-100]  # Cropping edges
+    # data = data[:,:,100:-100]   # Cropping edges
+    # data[np.isnan(data)]=0. #pruning NaN's
+    # data[data <0.]=0. # purging negative values
+    
+    Ndet, Nphi, Npix = data.shape
+    
+    # Get the first spectrum for this order, flattened across all orders 
+    spectrum_flat = np.zeros((Ndet * Npix, Nphi))
+    for ispec in range(Nphi):
+        temp = []
+        for iord in range(Ndet):
+            temp.extend(spdd['spdatacube'][iord, ispec, :])
+        spectrum_flat[:, ispec] = np.array(temp)
+
+    init_wlen_flat= []
+    for iord in range(Ndet):
+        init_wlen_flat.extend(spdd['wavsoln'][iord, :])
+    init_wlen_flat = np.array(init_wlen_flat)
+    nwav_flat = len(init_wlen_flat)
+    
+    ###### For each exposure, do shift and stretch and find the best match with the telluric model
+    shift_stretch_all_exp = np.zeros((Nphi, 2))  # To store the best fit parameters for each exposure
+    # for ispec in range(Nphi):
+    ######## Only do for the first exposure for now, as a test; Realign all the exposures to this.
+    ispec = 50                   
+    spectrum_current = spectrum_flat[:, ispec]
+    spl_1 = splrep(init_wlen_flat, spectrum_current - np.max(spectrum_current))
+    x0 = [1,0.01]
+    res = minimize(compute_CC, x0, args=(spl_1, cs_tell, init_wlen_flat), bounds = ((0.999,1.001), (-0.050, 0.050)), method='Powell', options={'disp': True})
+    print('Best fit parameters for exposure {:02}: '.format(ispec), res.x)
+    shift_stretch_all_exp[ispec, :] = res.x
+            
+    ###### Realign all the spectra using the measured shifts and stretches
+    data_corrected = np.zeros(data.shape)
+    wl_corrected = np.zeros(wl_data.shape)
+    # wl_corrected[0, :] = wl_data[0, :] * shift_stretch_all_exp[0, 0] + shift_stretch_all_exp[0, 1]  # Apply the shift and stretch for the first exposure
+    
+    for iord in range(Ndet):    # Order loop
+        print('- Correcting order {:02}'.format(iord))
+        wl0 = wl_data[iord,:]   # Starting wavelengths
+        wl_corrected[iord,:] = wl0 * shift_stretch_all_exp[ispec, 0] + shift_stretch_all_exp[ispec, 1] ## Same for all exposures as first exposure 
+        
+        for iphi in range(Nphi):  # phase/time/frame loop
+            data_to_correct = data[iord,iphi,:]    #current spectrum to re-align (raw spectrum)
+            cs_data = splrep(wl0, data_to_correct, s=0.0)
+            data_corrected[iord, iphi, :] = splev(wl_corrected[iord,:], cs_data)  # Interpolate the data onto the shifted wavelengths
+
+    
+    spdd_wave_recalib['wavsoln'] = wl_corrected # wl_data
+    spdd_wave_recalib['spdatacube'] = data_corrected
+    spdd_wave_recalib['file_name'] = 'wave_recal_' + spdd['file_name']
+    
+    np.save(savedir + spdd_wave_recalib['file_name'] , spdd_wave_recalib)
+    print('Saved recalibrated data to: ', savedir + spdd_wave_recalib['file_name'])
+    if retres:
+        return spdd_wave_recalib
+    
+def wavelength_recalib_crires_skycalc_CC_SS_INT2(spdd_path = None, model_telluric_path = None, savedir = None, retres = False):
+    
+    ##### Load the observed data 
+    spdd = np.load(spdd_path, allow_pickle = True).item()
+    spdd_wave_recalib = copy.deepcopy(spdd)
+    
+    wl_data = spdd['wavsoln']   # Initial wavelengths; in nm.
+    data = spdd['spdatacube']   # Corresponding fluxes; telluric saturated orders have already been removed here. 
+
+    #### Load telluric model data 
+    model_tell = fits.getdata(model_telluric_path)
+    wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
+    trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
+    trans = trans/10. # scaling to match the data 
+    cs_tell = splrep(wl_tell, trans - np.max(trans))
+    
+    # ''' Doing some preliminary work on the fluxes to eliminate borders (low-SNR)
+    # and not-a-number (NaN) / negative values '''
+    
+    # wl_data = wl_data[:,100:-100]  # Cropping edges
+    # data = data[:,:,100:-100]   # Cropping edges
+    # data[np.isnan(data)]=0. #pruning NaN's
+    # data[data <0.]=0. # purging negative values
+    
+    Ndet, Nphi, Npix = data.shape
+    
+    # # Get the first spectrum for this order, flattened across all orders 
+    # spectrum_flat = np.zeros((Ndet * Npix, Nphi))
+    # for ispec in range(Nphi):
+    #     temp = []
+    #     for iord in range(Ndet):
+    #         temp.extend(spdd['spdatacube'][iord, ispec, :])
+    #     spectrum_flat[:, ispec] = np.array(temp)
+
+    # init_wlen_flat= []
+    # for iord in range(Ndet):
+    #     init_wlen_flat.extend(spdd['wavsoln'][iord, :])
+    # init_wlen_flat = np.array(init_wlen_flat)
+    # nwav_flat = len(init_wlen_flat)
+    
+    ###### For each exposure, do shift and stretch and find the best match with the telluric model
+    shift_stretch_all_exp = np.zeros((Ndet, Nphi))  # To store the best fit parameters for each exposure
+    shifts = np.arange(-0.020, 0.020, 0.0005)
+
+    for iord in range(Ndet):
+        for ispec in range(Nphi):               
+            spectrum_current = spdd['spdatacube'][iord, ispec, :]
+            # spl_1 = splrep(spdd['wavsoln'][iord, :], spectrum_current - np.max(spectrum_current))
+            
+            # # x0 = [1,0.01]
+            # x0 = 0.01
+            # # res = minimize(compute_CC, x0, args=(spl_1, cs_tell, spdd['wavsoln'][iord, :]), bounds = ((0.9999,1.0005), (-0.02, 0.02)), method='Nelder-Mead', options={'disp': True})
+            # res = minimize(compute_CC, x0, args=(spl_1, cs_tell, spdd['wavsoln'][iord, :]), bounds = [(-0.02, 0.02)], method='Powell', options={'disp': True})
+            # print('Best fit parameters for order {:02} exposure {:02}: '.format(iord, ispec), res.x)
+            # shift_stretch_all_exp[iord,ispec, :] = res.x
+            shift_stretch_all_exp[iord,ispec] = compute_shift_via_CC(wl0 = wl_tell, wl1 = spdd['wavsoln'][iord, :], data0 = trans - np.max(trans), 
+                                data1 = spectrum_current-np.max(spectrum_current), test_shifts = shifts)
+            print('Best fit parameters for order {:02} exposure {:02}: '.format(iord, ispec), shift_stretch_all_exp[iord,ispec])
+            
+            
+            
+    ###### Correct all the spectra using the measured shifts and stretches first
+    data_corrected = np.zeros(data.shape)
+    wl_corrected = np.zeros(data.shape)
+    for iord in range(Ndet):    # Order loop
+        print('- Correcting order {:02}'.format(iord))
+        
+        wl0 = spdd['wavsoln'][iord, :]   # Starting wavelengths
+        
+        for ispec in range(Nphi):  # phase/time/frame loop
+            # wl_corrected[iord,ispec,:] = wl0 * shift_stretch_all_exp[iord,ispec, 0] + shift_stretch_all_exp[iord,ispec, 1]
+            wl_corrected[iord,ispec,:] = wl0 + shift_stretch_all_exp[iord,ispec]
+            data_to_correct = data[iord,ispec,:]    #current spectrum to re-align (raw spectrum)
+            cs_data_corr = splrep(wl0, data_to_correct)
+            data_corrected[iord, ispec, :] = splev(wl_corrected[iord,ispec,:], cs_data_corr)  # Interpolate the data onto the shifted wavelengths
+    
+    
+    ###### Realign all the spectra to the corrected wavelength solution of the first exposure 
+    wl_reference_corrected = wl_corrected[:,0,:]
+    
+    data_corrected_aligned = np.zeros(data.shape)
+    for iord in range(Ndet):    # Order loop
+        print('- Correcting order {:02}'.format(iord))
+        
+        for ispec in range(Nphi):  # phase/time/frame loop
+            data_to_align = data_corrected[iord,ispec,:]    #current spectrum to re-align (raw spectrum)
+            cs_data_align = splrep(wl_corrected[iord,ispec,:], data_to_align, s=0.0)
+            data_corrected_aligned[iord, ispec, :] = splev(wl_reference_corrected[iord,:], cs_data_align)  # Interpolate the data onto the shifted wavelengths
+
+    
+    spdd_wave_recalib['wavsoln'] = wl_reference_corrected # wl_data
+    spdd_wave_recalib['spdatacube'] = data_corrected_aligned
+    spdd_wave_recalib['file_name'] = 'wave_recal_' + spdd['file_name']
+    
+    np.save(savedir + spdd_wave_recalib['file_name'] , spdd_wave_recalib)
+    print('Saved recalibrated data to: ', savedir + spdd_wave_recalib['file_name'])
+    if retres:
+        return spdd_wave_recalib
     
 ############### ############### ############### ############### ############### ############### 
 ################## CARMENES ############### ############### ############### ############### ###

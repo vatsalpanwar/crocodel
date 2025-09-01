@@ -227,7 +227,7 @@ if instrument == 'igrins': ## This is for checking and making sure the simulatio
         KpVsys_HK['CC_norm'] = KpVsys_HK_total_CC_norm
         
         ####### Save ##### 
-        np.save(savedir_fin + f'KpVsys_HK_{sp}.npy', KpVsys_HK)
+        np.save(savedir_fin + 'KpVsys_HK_'+ sp+ '.npy', KpVsys_HK)
         
         ###### Plot the above ######## 
         
@@ -245,7 +245,7 @@ if instrument == 'igrins': ## This is for checking and making sure the simulatio
         plt.axvline(x = Vsys_true, linestyle = 'dotted', color = 'w')
         plt.axhline(y = Kp_true, linestyle = 'dotted', color = 'w')
         
-        plt.savefig(savedir_fin + f'simulated_logL_HK_total_{sp}.png', format='png', dpi=300, bbox_inches='tight')
+        plt.savefig(savedir_fin + 'simulated_logL_HK_total_' + sp + '.png', format='png', dpi=300, bbox_inches='tight')
         
         plt.figure(figsize=(8,8))
         axx = plt.gca()
@@ -261,7 +261,7 @@ if instrument == 'igrins': ## This is for checking and making sure the simulatio
         plt.axvline(x = Vsys_true, linestyle = 'dotted', color = 'w')
         plt.axhline(y = Kp_true, linestyle = 'dotted', color = 'w')
         
-        plt.savefig(savedir_fin + f'simulated_logL_sigma_HK_total_{sp}.pdf', format='pdf', dpi=300, bbox_inches='tight')
+        plt.savefig(savedir_fin + 'simulated_logL_sigma_HK_total_'+sp+'.pdf', format='pdf', dpi=300, bbox_inches='tight')
 
         plt.figure(figsize=(8,8))
         axx = plt.gca()
@@ -277,7 +277,7 @@ if instrument == 'igrins': ## This is for checking and making sure the simulatio
         plt.axvline(x = Vsys_true, linestyle = 'dotted', color = 'w')
         plt.axhline(y = Kp_true, linestyle = 'dotted', color = 'w')
         
-        plt.savefig(savedir_fin + f'simulated_CC_HK_total_norm_{sp}.pdf', format='pdf', dpi=300, bbox_inches='tight')
+        plt.savefig(savedir_fin + 'simulated_CC_HK_total_norm_'+sp+'.pdf', format='pdf', dpi=300, bbox_inches='tight')
         
         print('Done: ', sp)
         

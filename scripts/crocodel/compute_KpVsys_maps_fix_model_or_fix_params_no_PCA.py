@@ -125,31 +125,45 @@ if not os.path.isfile(savedir+'datadetrend_dd.npy'):
     for date in dates:
         datadetrend_dd[date]['phases'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['phases']
         datadetrend_dd[date]['berv'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['bary_RV']
-        print('Date: ', date)
-        print('phases: ', datadetrend_dd[date]['phases'])
-        post_pca_mask, colmask, data_wavsoln, datacube, datacube_mean_sub, datacube_fit, datacube_detrended, pca_eigenvectors = [],[],[],[],[],[],[],[]
+        datadetrend_dd[date]['data_wavsoln'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['wavsoln']
+        datadetrend_dd[date]['datacube'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['spdatacube']
+        datadetrend_dd[date]['datacube_fit'] = None
+        datadetrend_dd[date]['datacube_detrended'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['spdatacube']
+        Nord, Nphi, Npix = datadetrend_dd[date]['datacube'].shape
+        # datadetrend_dd[date]['datacube_mean_sub'] = planet_data.get_spdatacubes_dict[INST_GLOBAL][date]['spdatacube'] # Initialize the mean subtracted datacube          
         
-        for ind in range(config_dd['data'][INST_GLOBAL]['N_order_all']):
-            colmask_, post_pca_mask_, data_wavsoln_, datacube_, datacube_fit_, datacube_detrended_, datacube_mean_sub_, pca_eigenvectors_ = planet_data.pca_per_order_fast(inst = INST_GLOBAL, date = date, order_ind = ind)
+        datacube_mean_sub = np.zeros((Nord, Nphi, Npix)) # Initialize the mean subtracted datacube
+        # import pdb; pdb.set_trace()
+        for ind in range(Nord):
+            for it in range(len(datadetrend_dd[date]['phases'])):
+                datacube_mean_sub[ind,it,:] = datadetrend_dd[date]['datacube'][ind,it,:] - np.mean(datadetrend_dd[date]['datacube'][ind,it,:])
+            datadetrend_dd[date]['datacube_mean_sub'] = datacube_mean_sub
+            
+        
+        datadetrend_dd[date]['post_pca_mask'] = np.zeros((Nord, Npix), dtype = bool) # This will work if all orders are of the same length 
+        datadetrend_dd[date]['colmask'] = np.zeros((Nord, Npix), dtype = bool)
+        datadetrend_dd[date]['pca_eigenvectors'] = None
+        
+        # print('Date: ', date)
+        # print('phases: ', datadetrend_dd[date]['phases'])
+        # post_pca_mask, colmask, data_wavsoln, datacube, datacube_mean_sub, datacube_fit, datacube_detrended, pca_eigenvectors = [],[],[],[],[],[],[],[]
+        
+        # for ind in range(config_dd['data'][INST_GLOBAL]['N_order_all']):
+        #     colmask_, post_pca_mask_, data_wavsoln_, datacube_, datacube_fit_, datacube_detrended_, datacube_mean_sub_, pca_eigenvectors_ = planet_data.pca_per_order_fast(inst = INST_GLOBAL, date = date, order_ind = ind)
 
-            post_pca_mask.append(post_pca_mask_)
-            colmask.append(colmask_) ## colmask is the same for all orders for now so don't append it more than once 
-            data_wavsoln.append(data_wavsoln_)
-            datacube.append(datacube_)
-            datacube_fit.append(datacube_fit_)
-            datacube_detrended.append(datacube_detrended_)
-            datacube_mean_sub.append(datacube_mean_sub_) 
-            pca_eigenvectors.append(pca_eigenvectors_)
+        #     post_pca_mask.append(post_pca_mask_)
+        #     colmask.append(colmask_) ## colmask is the same for all orders for now so don't append it more than once 
+        #     data_wavsoln.append(data_wavsoln_)
+        #     datacube.append(datacube_)
+        #     datacube_fit.append(datacube_fit_)
+        #     datacube_detrended.append(datacube_detrended_)
+        #     datacube_mean_sub.append(datacube_mean_sub_) 
+        #     pca_eigenvectors.append(pca_eigenvectors_)
         
         
-        datadetrend_dd[date]['post_pca_mask'] = np.array(post_pca_mask) # This will work if all orders are of the same length 
-        datadetrend_dd[date]['colmask'] = np.array(colmask)
-        datadetrend_dd[date]['data_wavsoln'] = np.array(data_wavsoln)
-        datadetrend_dd[date]['datacube'] = np.array(datacube)
-        datadetrend_dd[date]['datacube_fit'] = np.array(datacube_fit)
-        datadetrend_dd[date]['datacube_detrended'] = np.array(datacube_detrended)
-        datadetrend_dd[date]['datacube_mean_sub'] = np.array(datacube_mean_sub)
-        datadetrend_dd[date]['pca_eigenvectors'] = pca_eigenvectors
+
+        
+        
     ## Save the datadetrend_dd 
     np.save(savedir+'datadetrend_dd.npy', datadetrend_dd)
 
@@ -178,8 +192,8 @@ if not os.path.isfile(savedir+'datadetrend_dd.npy'):
                                         phases=datadetrend_dd[date]['phases'], 
                             wavsoln= datadetrend_dd[date]['data_wavsoln'][ind, :],
                             title='Detrended \n Date: ' + date + 'Detector: ' + str(ind), 
-                            setxlabel=True,
-                        vminvmax=[-0.08,0.08])
+                            setxlabel=True)
+                        # vminvmax=[-0.08,0.08])
             
             fig.colorbar(hnd2, ax=axx[1])
 
@@ -304,17 +318,28 @@ else:
         model_ind_dd['all_species']['wav_nm'], model_ind_dd['all_species']['spec'] = model_wav, model_spec
         
 np.save(savedir + 'model_spec_dict.npy', model_ind_dd)
+###### Save the raw spectral model at high resolution in a txt file to share with Jayne 
+from astropy.table import Table
+dat = Table()
+dat['wav_nm'] = model_wav
+dat['transit_depth'] = 1. - model_spec_orig ## model_spec_orig itself is 1 - transit_depth 
+asc.write(dat, savedir + 'model_full_res.csv', format='csv', overwrite=True)
+
+######## Plot the model only ####### 
 plt.figure(figsize = (12,5))
 plt.plot(model_ind_dd['all_species']['wav_nm'],
-         model_ind_dd['all_species']['spec'], color = 'xkcd:green', linewidth = 0.5 ) 
+         1. - model_spec_orig, color = 'xkcd:red', linewidth = 0.5 , alpha = 0.5, label = 'Full resolution') 
+plt.plot(model_ind_dd['all_species']['wav_nm'],
+         1. - model_ind_dd['all_species']['spec'], color = 'xkcd:green', linewidth = 1, label = 'Convolved' ) 
     
 plt.xlabel('Wavelength [nm]')
 if config_dd_global['data'][INST_GLOBAL]['method'] == 'transmission':
     plt.ylabel('(Rp/Rs)^2')
-    # plt.ylim(ymin = 0.95)
+    plt.ylim(ymin = 0.02, ymax = 0.04)
 else:
     plt.ylabel('Fp/Fs')
 
+plt.xlim(3100, 5600)
 plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
     
 # ############ Plot the model and the data across all orders ########### 
@@ -505,49 +530,18 @@ if not fix_model:
             setattr(planet_model_dict_global[INST_GLOBAL], pname, fix_param_dict[pname])   
 
     print('Computing KpVsys maps ...')
-    if KpVsys_method == 'slow':
-        print('Using fast method as test first ...')
-        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
-                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                        Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
-        
-        print('Using slow method ...')
-        print('Computing the trail matrix with model reprocessing ...')
-        # planet_model_dict_global[INST_GLOBAL].get_ccf_trail_matrix_with_model_reprocess(datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-        #                      Vsys_range = Vsys_range, savedir = savedir, Kp_range = Kp_range)
-        # exit()
-        KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
-                                                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir, phase_range = phase_range)
-
-        planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
-    elif KpVsys_method == 'fast':
-        print('Using fast method ...')
-        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
-                                                            datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
+    print('Using fast method ...')
+    planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                        datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                            Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
 
 else:
     print('Computing KpVsys maps for fixed model ...')
-    if KpVsys_method == 'slow':
-        print('Using fast method as test first ...')
-        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
-                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                        Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, fixed_model_wav = wav_nm, fixed_model_spec = spec)
-        
-        print('Using slow method ...')
-        KpVsys_save = planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map(theta_fit_dd = None, posterior = '_', 
-                                                                                    datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                    Vsys_range = Vsys_range, Kp_range = Kp_range, savedir = savedir, fixed_model_wav = wav_nm, fixed_model_spec = spec)
+    print('Using fast method ...')
+    planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                        datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                            Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, fixed_model_wav = wav_nm, fixed_model_spec = spec)
 
-        planet_model_dict_global[INST_GLOBAL].plot_KpVsys_maps(KpVsys_save = None, posterior = '_', theta_fit_dd = None, savedir = savedir)
-    
-    elif KpVsys_method == 'fast':
-        print('Using fast method ...')
-        planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
-                                                            datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-                                Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, fixed_model_wav = wav_nm, fixed_model_spec = spec)
-    
        
        
 ##############################################################################
