@@ -305,18 +305,21 @@ else:
         
 np.save(savedir + 'model_spec_dict.npy', model_ind_dd)
 plt.figure(figsize = (12,5))
+spec_plot = 1. - model_ind_dd['all_species']['spec']
 plt.plot(model_ind_dd['all_species']['wav_nm'],
-         model_ind_dd['all_species']['spec'], color = 'xkcd:green', linewidth = 0.5 ) 
+         spec_plot, color = 'xkcd:green', linewidth = 0.5 ) 
     
 plt.xlabel('Wavelength [nm]')
 if config_dd_global['data'][INST_GLOBAL]['method'] == 'transmission':
     plt.ylabel('(Rp/Rs)^2')
-    # plt.ylim(ymin = 0.95)
+    plt.ylim(ymin = 0.02, ymax = 0.025)
+    plt.xlim(xmin = 1060, xmax = 1080)
 else:
     plt.ylabel('Fp/Fs')
 
 plt.savefig(savedir + 'best_fit_model_all_species.pdf', format='pdf', bbox_inches='tight')
-    
+exit()
+
 # ############ Plot the model and the data across all orders ########### 
 # plt.figure(figsize = (12,5))
 # # spnm = 'fe' ## Just plot one of the species 

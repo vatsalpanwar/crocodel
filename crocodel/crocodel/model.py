@@ -2,8 +2,9 @@ import numpy as np
 import yaml
 import pyfastchem
 import sys
-sys.path.insert(0, "/home/astro/phsprd/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
-import genesis
+# sys.path.insert(0, "/home/astro/phsprd/code/genesis/code")  ## Add path to genesis in your machine (point to the code subdirectory which contains genesis.py)
+# import genesis
+from genesis import genesis
 from astropy.io import fits
 import scipy.constants as sc
 from . import stellcorrection_utils as stc
@@ -131,6 +132,7 @@ class Model:
                 self.species_fastchem_indices[sp] = self.fastchem.getGasSpeciesIndex(self.species_name_fastchem[sp])
             ## "h2" is usually not in the free abundances so get its index as well separately.
             self.species_fastchem_indices["h2"] = self.fastchem.getGasSpeciesIndex("H2")
+            
         elif self.chemistry == 'eq_chem_ER':
             #create a FastChem object
             #it needs the locations of the element abundance and equilibrium constants files
@@ -155,15 +157,27 @@ class Model:
             self.C_to_H = self.elemental_ratios['C_to_H']
             self.R_to_H = self.elemental_ratios['R_to_H']
             self.refractories = self.config['model']['refractories']
-            self.use_C_to_O = False
+            self.use_C_to_O = False ## By default set for False 
             
             self.index_C = self.fastchem.getElementIndex('C')
             self.index_O = self.fastchem.getElementIndex('O')
+            self.index_H = self.fastchem.getElementIndex('H')
             
+            # for refrac in self.refractories:
+            #     refrac_fastchem_name = self.species_name_fastchem[refrac]
+            #     ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
+            #     setattr(self, 'index_' + refrac, ind_refrac)
+            element_abundances = np.copy(self.solar_abundances)
+            self.C_to_H_solar = element_abundances[self.index_C]/element_abundances[self.index_H]
+            self.O_to_H_solar = element_abundances[self.index_O]/element_abundances[self.index_H]
+            
+            self.R_total_solar = 0
             for refrac in self.refractories:
                 refrac_fastchem_name = self.species_name_fastchem[refrac]
                 ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
-                setattr(self, 'index_' + refrac, ind_refrac)            
+                setattr(self, 'index_' + refrac, ind_refrac)
+                self.R_total_solar =+ element_abundances[ind_refrac]
+            self.R_to_H_solar = self.R_total_solar/element_abundances[self.index_H]
             
             # Create the input and output structures for FastChem
             self.input_data = pyfastchem.FastChemInput()
@@ -572,16 +586,19 @@ class Model:
         :rtype: _type_
         """
         
-        element_abundances = np.copy(self.solar_abundances)
+        element_abundances = np.copy(self.solar_abundances) 
+        C_to_H_planet_abs = 10.**(self.C_to_H)
+        O_to_H_planet_abs = 10.**(self.O_to_H)
+
+        # Scale the C and O by their ratios to H
+        element_abundances[self.index_C] *= C_to_H_planet_abs
+        element_abundances[self.index_O] *= O_to_H_planet_abs
   
         # Scale the refractories by R/H ratio
+        R_to_H_abs = 10.**(self.R_to_H)
         for refrac in self.refractories:
             ind_refrac = getattr(self, 'index_' + refrac)
-            element_abundances[ind_refrac] *= 10.**self.R_to_H
-        # Scale the C and O by their ratios to H
-        element_abundances[self.index_C] *= 10.**self.C_to_H
-        element_abundances[self.index_O] *= 10.**self.O_to_H
-        
+            element_abundances[ind_refrac] *= R_to_H_abs
         self.fastchem.setElementAbundances(element_abundances)
         
         temp, press = self.get_TP_profile()

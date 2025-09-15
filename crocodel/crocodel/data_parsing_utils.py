@@ -18,6 +18,7 @@ import glob
 import astropy.io.fits as fits
 import copy
 from scipy.optimize import minimize
+import skycalc_ipy
 
 ############### ############### ############### ############### ############### ########### ############### ############### 
 ######## Modules to parse data from their raw/processed format from observatory archives ########### ############### ############### 
@@ -402,9 +403,21 @@ def wavelength_recalib_Matteo(spdd_path = None, model_telluric_path = None, save
     data = spdd['spdatacube']   # Corresponding fluxes; telluric saturated orders have already been removed here. 
 
     #### Load telluric model data 
-    model_tell = fits.getdata(model_telluric_path)
-    wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
-    trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    if model_telluric_path is not None:
+        model_tell = fits.getdata(model_telluric_path)
+        wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
+        trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    else:
+        sky_calc = skycalc_ipy.SkyCalc()
+        sky_calc["wmin"] = 500.0  # (nm) ## can be changed later or passed as input by the user 
+        sky_calc["wmax"] = 1500.0  # (nm)
+        sky_calc["wgrid_mode"] = "fixed_spectral_resolution"
+        sky_calc["wres"] = 2e5
+        sky_calc["pwv"] = 2.5
+        sky_calc['airmass'] = 1. # airmass         
+        wave, trans, _ = sky_calc.get_sky_spectrum(return_type="array")
+        wl_tell = wave.value
+        
     # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
     cs_tell = splrep(wl_tell, trans,s=0.0)
     
@@ -485,11 +498,23 @@ def wavelength_recalib_Matteo_crires(spdd_path = None, model_telluric_path = Non
     data = spdd['spdatacube']   # Corresponding fluxes; telluric saturated orders have already been removed here. 
 
     #### Load telluric model data 
-    model_tell = fits.getdata(model_telluric_path)
-    wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
-    trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
-    # trans = 0.08 + (trans-1.)/10. # scaling to match the data 
-    trans = trans/10. # scaling to match the data 
+    #### Load telluric model data 
+    if model_telluric_path is not None:
+        model_tell = fits.getdata(model_telluric_path)
+        wl_tell = model_tell['lam']   # Extracting the wavelengths from the FITS file; in nm.
+        trans = model_tell['trans']   # Extracting atmospheric transmission from FITS file
+    else:
+        sky_calc = skycalc_ipy.SkyCalc()
+        sky_calc["wmin"] = 500.0  # (nm) ## can be changed later or passed as input by the user 
+        sky_calc["wmax"] = 1500.0  # (nm)
+        sky_calc["wgrid_mode"] = "fixed_spectral_resolution"
+        sky_calc["wres"] = 2e5
+        sky_calc["pwv"] = 2.5
+        sky_calc['airmass'] = 1. # airmass         
+        wave, trans, _ = sky_calc.get_sky_spectrum(return_type="array")
+        wl_tell = wave.value
+        
+    trans = (trans - 1.)/10. # scaling to match the data 
     cs_tell = splrep(wl_tell, trans,s=0.0)
     
     ''' Doing some preliminary work on the fluxes to eliminate borders (low-SNR)
