@@ -1,0 +1,100 @@
+## Planet orbit parameters
+infostring: 
+workdir:
+  results:
+
+inst_list:
+  nirspec_395h:
+  niriss_soss_ord2:
+  niriss_soss_ord1:
+
+orbper: 2.218577
+impact_param: 0.6
+transit_duration: 1.84 ## in hours
+inc: 85.690
+omega: 0.
+ecc: 0.
+T0: 0.
+Rp_by_Rs: 0.1504 ## in units of Rstar
+obliquity: 0. #np.pi/2,
+a: 8.73 ## in units of Rstar
+
+## Planet atmosphere parameters
+modeling_method: 'genesis'
+model_resolution_working: 200000
+vsini_planet: 4.54 ## In km/s
+R_planet: 1.52 # In Jupiter radius
+log_g: 3.107
+P_ref: 0.0 # in log(bar)
+P_min: 1.0e-6 # in bars, 1 bar is 1e5 Pa,  so in Pa this is 1.0e-1
+P_max: 1.0e+2 # in bars, so in Pa this is 1.0e7
+N_layers: 50
+# lam_min: 1.3 # in microns  
+# lam_max: 2.5 # in microns 
+spacing: null # R # How do you want the wavelength points to be spaced? Use R for computing models at constant resolving power, and null if you have an wavelength grid to be specified.
+log_fs: 0.0
+phase_offset: 0.
+Kp: 188.055 ## Calculate this for HD189
+
+## Star
+R_star: 
+
+
+TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
+# # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! and in log P(Pa)
+P1: 4.
+T1: 3000.
+P2: 2.
+T2: 2000.
+
+## Chemistry
+fast_chem_inputs: '/home/astro/phsprd/code/crocodel/fastchem_inputs/'
+chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+logZ_planet: 0.0
+C_to_O: 0.5
+use_C_to_O: False
+include_condensation: False
+include_cia: True
+
+## Mean molecular weight : do you want to fix it? 
+fix_MMW: False
+MMW_value: 2.35
+
+## Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
+abundances:
+  co: -4.5
+  h2o: -4.5
+  oh: -4.5  
+  h_minus: -6.
+  he: -0.77
+
+species_name_fastchem:
+  co: 'C1O1'
+  h2o: 'H2O1'
+  oh: 'H1O1'
+  ch4: 'C1H4'
+  nh3: 'H3N1'
+  co2: 'C1O2'
+  hcn: 'C1H1N1_1'
+
+  h2s: 'H2S1'
+  tio: 'O1Ti1'
+  feh: 'Fe1H1'
+  crh: 'Cr1H1'
+  vo: 'O1V1'
+  alo: 'Al1O1'
+  mgo: 'Mg1O1'
+
+  fe: 'Fe'
+  ti: 'Ti'
+  si: 'Si'
+  ca: 'Ca'
+  mg: 'Mg'
+  v: 'V'
+  al: 'Al'
+  cr: 'Cr'
+
+  h_minus: 'H1-'
+  he: 'He'
+
+cl_P: 0.0 # log(cloud_pressure) in bars 

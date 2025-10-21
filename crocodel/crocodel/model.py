@@ -153,11 +153,11 @@ class Model:
             # Make a copy of the solar abundances from FastChem
             self.solar_abundances = np.array(self.fastchem.getElementAbundances())
             self.elemental_ratios = self.config['model']['elemental_ratios']
-            self.O_to_H = self.elemental_ratios['O_to_H']
-            self.C_to_H = self.elemental_ratios['C_to_H']
-            self.R_to_H = self.elemental_ratios['R_to_H']
+            self.log10_O_to_H_by_O_to_H_solar = self.elemental_ratios['log10_O_to_H_by_O_to_H_solar']
+            self.log10_C_to_H_by_C_to_H_solar = self.elemental_ratios['log10_C_to_H_by_C_to_H_solar']
+            self.log10_R_to_H_by_R_to_H_solar = self.elemental_ratios['log10_R_to_H_by_R_to_H_solar']
             self.refractories = self.config['model']['refractories']
-            self.use_C_to_O = False ## By default set for False 
+            self.use_C_to_O = False ## By default set for False ALWAYS for this case.
             
             self.index_C = self.fastchem.getElementIndex('C')
             self.index_O = self.fastchem.getElementIndex('O')
@@ -167,17 +167,17 @@ class Model:
             #     refrac_fastchem_name = self.species_name_fastchem[refrac]
             #     ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
             #     setattr(self, 'index_' + refrac, ind_refrac)
-            element_abundances = np.copy(self.solar_abundances)
-            self.C_to_H_solar = element_abundances[self.index_C]/element_abundances[self.index_H]
-            self.O_to_H_solar = element_abundances[self.index_O]/element_abundances[self.index_H]
+            # element_abundances = np.copy(self.solar_abundances)
+            # self.C_to_H_solar = element_abundances[self.index_C]/element_abundances[self.index_H]
+            # self.O_to_H_solar = element_abundances[self.index_O]/element_abundances[self.index_H]
             
-            self.R_total_solar = 0
+            # self.R_total_solar = 0
             for refrac in self.refractories:
                 refrac_fastchem_name = self.species_name_fastchem[refrac]
                 ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
                 setattr(self, 'index_' + refrac, ind_refrac)
-                self.R_total_solar =+ element_abundances[ind_refrac]
-            self.R_to_H_solar = self.R_total_solar/element_abundances[self.index_H]
+                # self.R_total_solar =+ element_abundances[ind_refrac]
+            # self.R_to_H_solar = self.R_total_solar/element_abundances[self.index_H]
             
             # Create the input and output structures for FastChem
             self.input_data = pyfastchem.FastChemInput()
@@ -586,19 +586,22 @@ class Model:
         :rtype: _type_
         """
         
+        # Get the solar abundances 
         element_abundances = np.copy(self.solar_abundances) 
-        C_to_H_planet_abs = 10.**(self.C_to_H)
-        O_to_H_planet_abs = 10.**(self.O_to_H)
+        
+        # Calculate the value of (C_to_H/C_to_H_solar)
+        C_to_H_by_C_to_H_solar = 10.**(self.log10_C_to_H_by_C_to_H_solar)
+        O_to_H_by_O_to_H_solar = 10.**(self.log10_O_to_H_by_O_to_H_solar)
 
         # Scale the C and O by their ratios to H
-        element_abundances[self.index_C] *= C_to_H_planet_abs
-        element_abundances[self.index_O] *= O_to_H_planet_abs
+        element_abundances[self.index_C] *= C_to_H_by_C_to_H_solar
+        element_abundances[self.index_O] *= O_to_H_by_O_to_H_solar
   
         # Scale the refractories by R/H ratio
-        R_to_H_abs = 10.**(self.R_to_H)
+        R_to_H_by_R_to_H_solar = 10.**(self.log10_R_to_H_by_R_to_H_solar)
         for refrac in self.refractories:
             ind_refrac = getattr(self, 'index_' + refrac)
-            element_abundances[ind_refrac] *= R_to_H_abs
+            element_abundances[ind_refrac] *= R_to_H_by_R_to_H_solar
         self.fastchem.setElementAbundances(element_abundances)
         
         temp, press = self.get_TP_profile()
@@ -731,8 +734,8 @@ class Model:
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict, cl_P = self.cl_P)
             spec = self.gen.genesis(abund_dict, cl_P = self.cl_P, include_cia = self.include_cia)
             spec /= ((self.R_star*6.957e8)**2.0)
-            spec = 1.-spec
-            # spec = -spec
+            # spec = 1.-spec
+            spec = -spec
         elif self.method == 'emission':
             # spec = self.gen.genesis_without_opac_check(self.abundances_dict)
             spec = self.gen.genesis(abund_dict, include_cia = self.include_cia)
@@ -1888,7 +1891,7 @@ class Model:
                         model_spec_flux_shift = model_spec_flux_shift - crocut.fast_mean(model_spec_flux_shift)
                         #### Compute the cross correlation value between the shifted model and the data
                         
-                        if it == 200 and iv == 0:
+                        if it == 0 and iv == 0:
                             plt.suptitle('Data vs Model; exposure ' + str(it) )
                             plt.figure(figsize=(12, 6))
                             plt.subplot(1, 2, 1)
@@ -1930,10 +1933,10 @@ class Model:
             fig.colorbar(hnd1, ax=axx)
             velocity_trail = []
             for it in range(len(datadetrend_dd[date]['phases'])):
-                V_planet =  self.Kp * np.sin(2. * np.pi * phases[it]) + self.Vsys + berv[it]
+                V_planet =  self.Kp * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it]) + self.Vsys + datadetrend_dd[date]['berv'][it]
                 velocity_trail.append(V_planet)
             velocity_trail = np.array(velocity_trail)
-            plt.plot(velocity_trail, phases, color = 'w', lw = 1, linestyle = 'dashed')
+            plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed')
             if self.method == 'transmission':
                 plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
                 plt.axhline(y = phase_range[1], color = 'w', lw = 2, linestyle = 'dotted')
@@ -1962,10 +1965,10 @@ class Model:
             fig.colorbar(hnd1, ax=axx)
             velocity_trail = []
             for it in range(len(datadetrend_dd[date]['phases'])):
-                V_planet =  self.Kp * np.sin(2. * np.pi * phases[it]) + self.Vsys + berv[it]
+                V_planet =  self.Kp * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it]) + self.Vsys + datadetrend_dd[date]['berv'][it]
                 velocity_trail.append(V_planet)
             velocity_trail = np.array(velocity_trail)
-            plt.plot(velocity_trail, phases, color = 'w', lw = 1, linestyle = 'dashed') 
+            plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed') 
             if self.method == 'transmission':
                 plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
                 plt.axhline(y = phase_range[1], color = 'w', lw = 2, linestyle = 'dotted') 
@@ -2001,17 +2004,19 @@ class Model:
         
         CC_KpVsys_total, logL_KpVsys_total = np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
         ## Start loop over dates 
-        print('phases:', phases)
-        phase_mask = np.ones(len(phases), dtype = bool)
-        if phase_range is not None:
-            phase_mask = np.logical_and(phases > phase_range[0], phases < phase_range[1])
-        print('Total phases: ', len(phases))
-        print('Summing signal across: ', np.sum(phase_mask))
-        
         for dt, date in enumerate(datelist):
+            print('Date', date)
             CC_KpVsys, logL_KpVsys = np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
             phases = datadetrend_dd[date]['phases']
+            berv = datadetrend_dd[date]['berv']
             nspec = len(phases)
+            print('phases:', phases)
+            phase_mask = np.ones(len(phases), dtype = bool)
+            if phase_range is not None:
+                phase_mask = np.logical_and(phases > phase_range[0], phases < phase_range[1])
+            print('Total phases: ', len(phases))
+            print('Summing signal across: ', np.sum(phase_mask))
+        
             for iKp, Kp in enumerate(Kp_range):
                 CC_matrix_shifted, logL_matrix_shifted = np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
                 for it in range(nspec):

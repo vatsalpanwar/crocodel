@@ -911,13 +911,14 @@ def wavelength_recalib_crires_skycalc_CC_SS_INT2(spdd_path = None, model_telluri
 ################## CARMENES ############### ############### ############### ############### ###
 ############### ############### ############### ############### ############### ###############
 def carmenes_parse1(ddir = '/Users/vatsalpanwar/source/work/astro/projects/Warwick/v1298tau/data/red/', obj_name = 'V1298 Tau', date = None, 
-                         savedir = '/Users/vatsalpanwar/source/work/astro/projects/Warwick/v1298tau/data/parsed/', savestring = 'V1298-Tau-b_CARMENES_2020-01-04'):
+                         savedir = '/Users/vatsalpanwar/source/work/astro/projects/Warwick/v1298tau/data/parsed/', 
+                         pi_initials = None, savestring = 'V1298-Tau-b_CARMENES_2020-01-04'):
     ### Get all the file names first
-    nir_scilist_A = glob.glob(ddir + "car*sci*todk*nir_A*")   ### Fibre A NIR files.
-    nir_scilist_B = glob.glob(ddir + "car*sci*todk*nir_B*")   ### Fibre B VIS files.
-    vis_scilist_A = glob.glob(ddir + "car*sci*todk*vis_A*")   ### Fibre A VIS files.
-    vis_scilist_B = glob.glob(ddir + "car*sci*todk*vis_B*")   ### Fibre B VIS files.
-
+    nir_scilist_A = glob.glob(ddir + "car*"+date+"*sci*"+pi_initials+"*nir_A*")   ### Fibre A NIR files.
+    nir_scilist_B = glob.glob(ddir + "car*"+date+"*sci*"+pi_initials+"*nir_B*")   ### Fibre B VIS files.
+    vis_scilist_A = glob.glob(ddir + "car*"+date+"*sci*"+pi_initials+"*vis_A*")   ### Fibre A VIS files.
+    vis_scilist_B = glob.glob(ddir + "car*"+date+"*sci*"+pi_initials+"*vis_B*")   ### Fibre B VIS files.
+    
     ### Sort them by the time of their creation
     # nir_scilist_A.sort(key=os.path.getmtime)
     # nir_scilist_B.sort(key=os.path.getmtime)
@@ -930,7 +931,7 @@ def carmenes_parse1(ddir = '/Users/vatsalpanwar/source/work/astro/projects/Warwi
     nir_scilist_B_obj = [k for k in nir_scilist_B if fits.open(k, memmap=False)[0].header['OBJECT'] == obj_name]
     vis_scilist_A_obj = [k for k in vis_scilist_A if fits.open(k, memmap=False)[0].header['OBJECT'] == obj_name]
     vis_scilist_B_obj = [k for k in vis_scilist_B if fits.open(k, memmap=False)[0].header['OBJECT'] == obj_name]
-
+    import pdb; pdb.set_trace()
     def sort_func(ll):
         return fits.open(ll, memmap=False)[0].header['HIERARCH CARACAL BJD']
 
@@ -943,9 +944,9 @@ def carmenes_parse1(ddir = '/Users/vatsalpanwar/source/work/astro/projects/Warwi
     
     obs_dd = {}
     obs_dd["savestring"] = savestring
-    obs_dd["star_name"] = 'V1298 Tau'
+    obs_dd["star_name"] = obj_name
     obs_dd["planet_ext"] = 'b'
-    obs_dd["planet_name"] = 'V1298 Tau b'
+    obs_dd["planet_name"] = obj_name + 'b'
 
     obs_dd["NIR"] = {}   ### Info for all the data from fibre A.
     obs_dd["VIS"] = {}   ### Info for all the data from fibre B.
@@ -990,9 +991,10 @@ def carmenes_parse1(ddir = '/Users/vatsalpanwar/source/work/astro/projects/Warwi
     
     
     print("Getting the data and making dictionaries...")
-
-    for odd in tqdm([ obs_dd["NIR"]["A"],obs_dd["NIR"]["B"],obs_dd["VIS"]["A"],obs_dd["VIS"]["B"] ]):
-
+    
+    # for ik, odd in tqdm(enumerate([ obs_dd["NIR"]["A"],obs_dd["NIR"]["B"],obs_dd["VIS"]["A"],obs_dd["VIS"]["B"] ])):
+    for ik, odd in tqdm(enumerate([obs_dd["NIR"]["A"]])):
+        print(ik)
         spec_list = []
         spec_list_norm = []
         
@@ -1008,8 +1010,7 @@ def carmenes_parse1(ddir = '/Users/vatsalpanwar/source/work/astro/projects/Warwi
 
             time_list.append( hdu_exp[0].header['HIERARCH CARACAL BJD'] )
 
-
-
+            # import pdb; pdb.set_trace()
             spec = hdu_exp[1].data
             cont = hdu_exp[2].data
             sig = hdu_exp[3].data
@@ -1069,26 +1070,26 @@ def carmenes_parse2(parse1_path = None, savedir = None):
     spdatacube_dd_NIR_A['WLEN'] = 0.1*obs_dd['NIR']['A']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night, in nm
     spdatacube_dd_NIR_A['MJD'] = obs_dd['NIR']['A']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
 
-    spdatacube_dd_NIR_B['SPEC'] = np.swapaxes(obs_dd['NIR']['B']['spec'], 0, 1)# shape should be (ndet, nspec, nwav)
-    spdatacube_dd_NIR_B['NOISE'] = np.swapaxes(obs_dd['NIR']['B']['sig'], 0, 1)# shape should be (ndet, nspec, nwav)
-    spdatacube_dd_NIR_B['AIRM'] = obs_dd['NIR']['B']['hdrinfo']['AIRMASS']
-    spdatacube_dd_NIR_B['PH'] = obs_dd['NIR']['B']['hdrinfo']['MJD-OBS'] # convert it to phase later 
-    spdatacube_dd_NIR_B['WLEN'] = 0.1*obs_dd['NIR']['B']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night 
-    spdatacube_dd_NIR_B['MJD'] = obs_dd['NIR']['B']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
+    # spdatacube_dd_NIR_B['SPEC'] = np.swapaxes(obs_dd['NIR']['B']['spec'], 0, 1)# shape should be (ndet, nspec, nwav)
+    # spdatacube_dd_NIR_B['NOISE'] = np.swapaxes(obs_dd['NIR']['B']['sig'], 0, 1)# shape should be (ndet, nspec, nwav)
+    # spdatacube_dd_NIR_B['AIRM'] = obs_dd['NIR']['B']['hdrinfo']['AIRMASS']
+    # spdatacube_dd_NIR_B['PH'] = obs_dd['NIR']['B']['hdrinfo']['MJD-OBS'] # convert it to phase later 
+    # spdatacube_dd_NIR_B['WLEN'] = 0.1*obs_dd['NIR']['B']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night 
+    # spdatacube_dd_NIR_B['MJD'] = obs_dd['NIR']['B']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
 
-    spdatacube_dd_VIS_A['SPEC'] = np.swapaxes(obs_dd['VIS']['A']['spec'], 0, 1)# shape should be (ndet, nspec, nwav)
-    spdatacube_dd_VIS_A['NOISE'] = np.swapaxes(obs_dd['VIS']['A']['sig'], 0, 1)# shape should be (ndet, nspec, nwav)
-    spdatacube_dd_VIS_A['AIRM'] = obs_dd['VIS']['A']['hdrinfo']['AIRMASS']
-    spdatacube_dd_VIS_A['PH'] = obs_dd['VIS']['A']['hdrinfo']['MJD-OBS'] # convert it to phase later 
-    spdatacube_dd_VIS_A['WLEN'] = 0.1*obs_dd['VIS']['A']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night 
-    spdatacube_dd_VIS_A['MJD'] = obs_dd['VIS']['A']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
+    # spdatacube_dd_VIS_A['SPEC'] = np.swapaxes(obs_dd['VIS']['A']['spec'], 0, 1)# shape should be (ndet, nspec, nwav)
+    # spdatacube_dd_VIS_A['NOISE'] = np.swapaxes(obs_dd['VIS']['A']['sig'], 0, 1)# shape should be (ndet, nspec, nwav)
+    # spdatacube_dd_VIS_A['AIRM'] = obs_dd['VIS']['A']['hdrinfo']['AIRMASS']
+    # spdatacube_dd_VIS_A['PH'] = obs_dd['VIS']['A']['hdrinfo']['MJD-OBS'] # convert it to phase later 
+    # spdatacube_dd_VIS_A['WLEN'] = 0.1*obs_dd['VIS']['A']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night 
+    # spdatacube_dd_VIS_A['MJD'] = obs_dd['VIS']['A']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
 
-    spdatacube_dd_VIS_B['SPEC'] = np.swapaxes(obs_dd['VIS']['B']['spec'], 0, 1)# shape should be (ndet, nspec, nwav)
-    spdatacube_dd_VIS_B['NOISE'] = np.swapaxes(obs_dd['VIS']['B']['sig'], 0, 1)# shape should be (ndet, nspec, nwav)
-    spdatacube_dd_VIS_B['AIRM'] = obs_dd['VIS']['B']['hdrinfo']['AIRMASS']
-    spdatacube_dd_VIS_B['PH'] = obs_dd['VIS']['B']['hdrinfo']['MJD-OBS'] # convert it to phase later 
-    spdatacube_dd_VIS_B['WLEN'] = 0.1*obs_dd['VIS']['B']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night 
-    spdatacube_dd_VIS_B['MJD'] = obs_dd['VIS']['B']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
+    # spdatacube_dd_VIS_B['SPEC'] = np.swapaxes(obs_dd['VIS']['B']['spec'], 0, 1)# shape should be (ndet, nspec, nwav)
+    # spdatacube_dd_VIS_B['NOISE'] = np.swapaxes(obs_dd['VIS']['B']['sig'], 0, 1)# shape should be (ndet, nspec, nwav)
+    # spdatacube_dd_VIS_B['AIRM'] = obs_dd['VIS']['B']['hdrinfo']['AIRMASS']
+    # spdatacube_dd_VIS_B['PH'] = obs_dd['VIS']['B']['hdrinfo']['MJD-OBS'] # convert it to phase later 
+    # spdatacube_dd_VIS_B['WLEN'] = 0.1*obs_dd['VIS']['B']['wave'][0,:,:] # shape is (ndet, nwav) , assuming wavelength solution doesn't change throughout the night 
+    # spdatacube_dd_VIS_B['MJD'] = obs_dd['VIS']['B']['hdrinfo']['MJD-OBS'] # shape is (nspec,)
 
     spdatacube_dd = {}
     
@@ -1100,14 +1101,15 @@ def carmenes_parse2(parse1_path = None, savedir = None):
     spdatacube_dd['VIS'] = {}
 
     spdatacube_dd['NIR']['A'] = spdatacube_dd_NIR_A
-    spdatacube_dd['NIR']['B'] = spdatacube_dd_NIR_B
-    spdatacube_dd['VIS']['A'] = spdatacube_dd_VIS_A
-    spdatacube_dd['VIS']['B'] = spdatacube_dd_VIS_B
+    # spdatacube_dd['NIR']['B'] = spdatacube_dd_NIR_B
+    # spdatacube_dd['VIS']['A'] = spdatacube_dd_VIS_A
+    # spdatacube_dd['VIS']['B'] = spdatacube_dd_VIS_B
 
     np.save(savedir + savestring + '_parse2.npy', spdatacube_dd)
 
 def carmenes_parse3(parse2_path = None, savedir = None, 
-                    bandpass = 'NIR', fibre = 'A', T0 = None, Porb = None, radec = '04 05 19.5909996648 +20 09 25.563233736'):
+                    bandpass = 'NIR', fibre = 'A', T0 = None, Porb = None, 
+                    radec = '04 05 19.5909996648 +20 09 25.563233736', return_spdd = False):
     
     spdd_load = np.load(parse2_path, allow_pickle = True).item()
     
@@ -1158,6 +1160,7 @@ def carmenes_parse3(parse2_path = None, savedir = None,
     spdatacube_dd['bary_RV'] = Vbary
     
     np.save(savedir + spdd_load['savestring'] + '_' + bandpass + '_parse3.npy', spdatacube_dd)
-
+    if return_spdd:
+        return spdatacube_dd
     
     
