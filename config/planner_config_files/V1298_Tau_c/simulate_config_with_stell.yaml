@@ -13,7 +13,7 @@ simulation_info:
 
   infostring: 'V1298_Tau_c_Anjali_IGRINS_proposal'
 
-  N_PCA: 4
+  N_PCA: 3
   
   noise: 'photon_noise'
   
@@ -25,7 +25,7 @@ simulation_info:
   
   N_visit: 1 ## If you want to average over two visits (DO THIS NEXT)
   
-  savedir: '/home/astro/phsprd/proposals/NOIRLabs_March2025_for_2025B/V1298_Tau_c_igrins_proposal/results/'
+  savedir: '/home/astro/phsprd/proposals/Gemini_FT/V1298_Tau_c_October2025/results/'
   
   CC_species: ['all', 'h2o', 'co', 'ch4', 'nh3']
 
@@ -52,7 +52,7 @@ planet_info:
   
   Vsys_range: [-180., 180.] ## To compute the trail matrix
   Vsys_step: 1.
-  vel_window: [150,-150] ## Windowing the Vsys_range to a smaller range to make the KpVsys map
+  vel_window: [180,-150] ## Windowing the Vsys_range to a smaller range to make the KpVsys map
   
   Kp_range: [80., 160.]
   Kp_step: 1.
@@ -62,8 +62,8 @@ planet_info:
   inject_model_path: 'output_V1298_Tau_c_IGRINS_proposal_logZ_0.0_cl_P_-2.5_transmission/'
   inject_model_infostring: 'INJ_logZ_0.0_cl_P_-2.5_transmission'
 
-  cross_correlate_model_path: 'output_V1298_Tau_c_IGRINS_proposal_logZ_0.0_cl_P_-2.5_transmission/'
-  cross_correlate_model_infostring: 'CC_logZ_0.0_cl_P_-2.5_transmission'
+  cross_correlate_model_path: 'output_V1298_Tau_c_IGRINS_proposal_logZ_0.0_cl_P_0.0_transmission/'
+  cross_correlate_model_infostring: 'CC_logZ_0.0_cl_P_0.0_transmission'
     
   model_config: ' ' ## Add path to model config file, which can be used to load the model configuration and calculate a 1D model grid for a single varying parameter; not used right now.
   

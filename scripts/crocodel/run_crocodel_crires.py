@@ -32,8 +32,8 @@ from crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
 ### Define the global name for the instrument (should match the instrument name specified in the croc_config.yaml file)
-# INST_GLOBAL = 'crires' ## could change this when running for multiple instruments in future implementation.
-INST_GLOBAL = 'igrins'
+INST_GLOBAL = 'crires' ## could change this when running for multiple instruments in future implementation.
+
 ##########################################################################################################################
 ##########################################################################################################################
 
@@ -302,10 +302,10 @@ Compute a fast Kp-Vsys map for the fix_test values in the free_param_dict
 """
 ################################################################
 ################################################################
-# print('Computing KpVsys maps ')
-# planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
-#                                                            datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-#                              Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
+print('Computing KpVsys maps ')
+planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+                                                           datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+                             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window)
 
 
 

@@ -155,7 +155,7 @@ data: # Each high level key under data should be the name of the instrument.
       }
     cross_correlation_params:
       ### Kp_exp is 117.73 km/s
-      Vsys_range: [-100., 100.]
+      Vsys_range: [0., 50.]
       Kp_range: [50., 150.]
       # Vsys_range: [-100., 100.]
       # Kp_range: [90.,130.]
@@ -253,7 +253,7 @@ model:
   # Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
   abundances:
     # co: -4.5
-    # h2o: -3.
+    h2o: -3.
     # ch4: -3.
     so: -2.
     # nh3: -4.5

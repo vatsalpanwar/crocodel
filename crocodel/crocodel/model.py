@@ -155,7 +155,10 @@ class Model:
             self.elemental_ratios = self.config['model']['elemental_ratios']
             self.log10_O_to_H_by_O_to_H_solar = self.elemental_ratios['log10_O_to_H_by_O_to_H_solar']
             self.log10_C_to_H_by_C_to_H_solar = self.elemental_ratios['log10_C_to_H_by_C_to_H_solar']
-            self.log10_R_to_H_by_R_to_H_solar = self.elemental_ratios['log10_R_to_H_by_R_to_H_solar']
+            self.refractories = self.config['model']['refractories']
+            
+            if self.refractories is not None:
+                self.log10_R_to_H_by_R_to_H_solar = self.elemental_ratios['log10_R_to_H_by_R_to_H_solar']
             self.refractories = self.config['model']['refractories']
             self.use_C_to_O = False ## By default set for False ALWAYS for this case.
             
@@ -172,12 +175,13 @@ class Model:
             # self.O_to_H_solar = element_abundances[self.index_O]/element_abundances[self.index_H]
             
             # self.R_total_solar = 0
-            for refrac in self.refractories:
-                refrac_fastchem_name = self.species_name_fastchem[refrac]
-                ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
-                setattr(self, 'index_' + refrac, ind_refrac)
-                # self.R_total_solar =+ element_abundances[ind_refrac]
-            # self.R_to_H_solar = self.R_total_solar/element_abundances[self.index_H]
+            if self.refractories is not None:
+                for refrac in self.refractories:
+                    refrac_fastchem_name = self.species_name_fastchem[refrac]
+                    ind_refrac = self.fastchem.getElementIndex(refrac_fastchem_name)
+                    setattr(self, 'index_' + refrac, ind_refrac)
+                    # self.R_total_solar =+ element_abundances[ind_refrac]
+                # self.R_to_H_solar = self.R_total_solar/element_abundances[self.index_H]
             
             # Create the input and output structures for FastChem
             self.input_data = pyfastchem.FastChemInput()
@@ -300,8 +304,11 @@ class Model:
         # Instantiate GENESIS only once based on the given model properties
         self.Genesis_instance = genesis.Genesis(self.P_min, self.P_max, self.N_layers, self.lam_min, self.lam_max, self.resolving_power, self.spacing, method = self.method)
         
-        self.use_stellar_phoenix = self.config['model']['use_stellar_phoenix']
-        if self.use_stellar_phoenix:
+        # self.use_stellar_phoenix = self.config['model']['use_stellar_phoenix']
+        self.stellar_model = self.config['model']['stellar_model']
+        
+        
+        if self.stellar_model == 'phoenix':
             phoenix_model_wave_inp = fits.getdata(self.config['model']['phoenix_model_wave_path']) * 1e-10 ## dividing by 1e10 to convert Ang to m 
             phoenix_model_flux_inp = fits.getdata(self.config['model']['phoenix_model_flux_path']) * 1e-7 * 1e4 * 1e2 # * (phoenix_model_wave_inp**2./self.vel_c_SI) ## converting from 'erg/s/cm^2/cm' to J/m2/s
             stellar_spectrum_smooth_length = self.config['model']['stellar_spectrum_smooth_length']
@@ -354,7 +361,9 @@ class Model:
             ## Radiative flux unit is J/m2/s
             ## 1 erg is 1e-7 J
             ## PHOENIX model BUNIT needs to be converted from erg/s/cm^2/cm to  J/m2/s : convert to Joules and multiply by wavelength (to get rid of the cm factor in denominator)
-    
+        elif self.stellar_model == 'plastar':
+            self.stellar_model = np.load(self.config['model']['model_file_path'], allow_pickle = True).item()
+            self.stellar_model_key = self.config['model']['model_key']
     
     def get_phoenix_modelcube(self, datadetrend_dd = None, model_phoenix_flux = None, model_phoenix_wav = None):
         
@@ -383,6 +392,40 @@ class Model:
                     phoenix_modelcube[date][ind,it,:] = phoenix_model_spl(wavsoln_shift)
 
         return phoenix_modelcube
+
+    def get_simulated_stellar_modelcube(self, datadetrend_dd = None): # , model_phoenix_flux = None, model_phoenix_wav = None):
+        
+        ### Convolve spectra to instrument resolution 
+        # model_phoenix_flux_lsf = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_phoenix_flux)
+        
+        # phoenix_model_spl = interpolate.make_interp_spline(model_phoenix_wav, model_phoenix_flux_lsf, bc_type='natural')
+        
+        stellar_modelcube = {}
+        datelist = list(datadetrend_dd.keys()) 
+        for dt, date in enumerate(datelist):
+            
+            berv = datadetrend_dd[date]['berv']
+            data_wavsoln = datadetrend_dd[date]['data_wavsoln']
+            nspec = len(berv)
+            norder = data_wavsoln.shape[0]
+            nwav = data_wavsoln.shape[1]
+            
+            stellar_modelcube[date] = np.ones((norder, nspec, nwav))
+
+            for ind in range(norder):
+                for it in range(len(berv)):
+                    #### convolve to instrumental resolution 
+                    model_phoenix_flux_lsf = self.convolve_spectra_to_instrument_resolution(model_spec_orig=self.stellar_model[self.stellar_model_key][it,:])
+                    
+                    stellar_model_spl = interpolate.make_interp_spline(self.stellar_model['wavsoln'], 
+                                                                       model_phoenix_flux_lsf, 
+                                                                       bc_type='natural')
+                    RV_star = self.Vsys + berv[it]
+                    wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln[ind,:], 
+                                                                 velocity = -1.*RV_star)
+                    stellar_modelcube[date][ind,it,:] = stellar_model_spl(wavsoln_shift)
+
+        return stellar_modelcube 
     
     ####### Rotation kernel #######
     def rotation(self, vsini = None, model_wav = None, model_spec = None):
@@ -598,10 +641,12 @@ class Model:
         element_abundances[self.index_O] *= O_to_H_by_O_to_H_solar
   
         # Scale the refractories by R/H ratio
-        R_to_H_by_R_to_H_solar = 10.**(self.log10_R_to_H_by_R_to_H_solar)
-        for refrac in self.refractories:
-            ind_refrac = getattr(self, 'index_' + refrac)
-            element_abundances[ind_refrac] *= R_to_H_by_R_to_H_solar
+        if self.refractories is not None:
+            R_to_H_by_R_to_H_solar = 10.**(self.log10_R_to_H_by_R_to_H_solar)
+            for refrac in self.refractories:
+                ind_refrac = getattr(self, 'index_' + refrac)
+                element_abundances[ind_refrac] *= R_to_H_by_R_to_H_solar
+            
         self.fastchem.setElementAbundances(element_abundances)
         
         temp, press = self.get_TP_profile()
@@ -901,7 +946,7 @@ class Model:
         datamodel_detrended = np.empty((nspec, nwav))
         
         # model_spl = splrep(model_wav, model_spec)
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
             model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')
         else:
             model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')
@@ -921,7 +966,7 @@ class Model:
         ######## Check if you are using phoenix models, 
         ##### if yes then model_spec_shift_cube is only Fp, and you need to normalize it by phoenix_modelcube,
         ##### else just keep using it as is.
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
             model_spec_shift_cube = model_spec_shift_cube/phoenix_modelcube
         
         
@@ -996,7 +1041,7 @@ class Model:
         #######################################################################
                 
         # Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix':
             model_wav, model_Fp_orig = self.get_Fp_spectra()
             
             phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
@@ -1010,6 +1055,19 @@ class Model:
             
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spec = None
+        elif self.stellar_model == 'plastar':
+            model_wav, model_Fp_orig = self.get_Fp_spectra()
+            
+            phoenix_modelcube = self.get_simulated_stellar_modelcube(datadetrend_dd = datadetrend_dd)
+            
+            ### Rotationally broaden the planetary spectrum
+             
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spec = None
+            
         else:
             model_wav, model_spec_orig = self.get_spectra()        
             # Rotationally broaden the spectrum 
@@ -1038,7 +1096,7 @@ class Model:
                 nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
                 
                 # Calculate the reprocessed modelcube for the given values of Kp and Vsys
-                if self.use_stellar_phoenix:
+                if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
                     phoenix_modelcube_inp = phoenix_modelcube[date][ind,:,:]
                 else:
                     phoenix_modelcube_inp = None
@@ -1119,7 +1177,7 @@ class Model:
         
         datelist = list(datadetrend_dd.keys())
         
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix':
             if fixed_model_spec is None:
                 model_wav, model_Fp_orig = self.get_Fp_spectra()
             else:
@@ -1136,13 +1194,29 @@ class Model:
             
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
-            plt.figure()
-            plt.plot(model_wav, model_Fp/self.phoenix_model_flux)
-            plt.xlabel('Wavelength [nm]')
-            plt.ylabel('Fp/Fs')
-            plt.savefig(savedir + 'FpFs_actual.png', 
-                        format='png', dpi=300, bbox_inches='tight')
+            # plt.figure()
+            # plt.plot(model_wav, model_Fp/self.phoenix_model_flux)
+            # plt.xlabel('Wavelength [nm]')
+            # plt.ylabel('Fp/Fs')
+            # plt.savefig(savedir + 'FpFs_actual.png', 
+            #             format='png', dpi=300, bbox_inches='tight')
+        
+        elif self.stellar_model == 'plastar':
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra()
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+            phoenix_modelcube = self.get_simulated_stellar_modelcube(datadetrend_dd = datadetrend_dd)
             
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+               
         else:
             if fixed_model_spec is None:
                 model_wav, model_spec_orig = self.get_spectra()
@@ -1179,7 +1253,7 @@ class Model:
             
             # Dictionary to store the CCF trail matrix for each order for the given date 
             ccf_trail_matrix_dd[date] = {}
-            if self.use_stellar_phoenix:
+            if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
                 phoenix_modelcube_this_date = phoenix_modelcube[date]
                 
             # Loop over all orders 
@@ -1199,9 +1273,9 @@ class Model:
                         # model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
                         model_spec_shift_exp = model_spl(data_wavsoln_shift)
                         model_spec_shift_exp = model_spec_shift_exp - crocut.fast_mean(model_spec_shift_exp)
-                        if self.use_stellar_phoenix:
+                        if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
                             model_spec_shift_exp = model_spec_shift_exp/phoenix_modelcube_this_date[ind,it, :]
-                        
+                            
                         ccf_trail_matrix_dd[date][ind][it, iVsys], _, _ = crocut.fast_cross_corr(data=datadetrend_dd[date]['datacube_mean_sub'][ind, it, :],
                                                                                         model=model_spec_shift_exp)
                         
@@ -1301,7 +1375,7 @@ class Model:
         
         datelist = list(datadetrend_dd.keys()) 
 
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix':
             if fixed_model_spec is None:
                 model_wav, model_Fp_orig = self.get_Fp_spectra()
             else:
@@ -1318,6 +1392,23 @@ class Model:
             
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spec = None
+        
+        elif self.stellar_model == 'plastar':
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra()
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+            phoenix_modelcube = self.get_simulated_stellar_modelcube(datadetrend_dd = datadetrend_dd)
+            
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spec = None
+            
             
         else:
             if fixed_model_spec is None:
@@ -1372,7 +1463,7 @@ class Model:
                     setattr(self, 'Kp', Kp_val)
                     
                     
-                    if self.use_stellar_phoenix:
+                    if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
                         phoenix_modelcube_inp = phoenix_modelcube[date][ind,:,:]
                     else:
                         phoenix_modelcube_inp = None
@@ -1574,7 +1665,7 @@ class Model:
 
         datelist = list(datadetrend_dd.keys()) 
 
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix':
             if fixed_model_spec is None:
                 model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
             else:
@@ -1589,6 +1680,20 @@ class Model:
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spec = None
             model_FpFs_save = model_Fp/self.phoenix_model_flux
+        
+        elif self.stellar_model == 'plastar':
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+            phoenix_modelcube = self.get_simulated_stellar_modelcube(datadetrend_dd = datadetrend_dd)
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spec = None
+            model_FpFs_save = model_Fp
             
         else:
             if fixed_model_spec is None:
@@ -1642,7 +1747,7 @@ class Model:
                         setattr(self, 'Vsys', Vsys_val) 
                         nspec = datadetrend_dd[date]['datacube'][ind, :, :].shape[0]
                         # Compute the reprocessed model 
-                        if self.use_stellar_phoenix:
+                        if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
                             phoenix_modelcube_inp = phoenix_modelcube[date][ind,:,:]
                         else:
                             phoenix_modelcube_inp = None
@@ -1732,7 +1837,8 @@ class Model:
                                                            datadetrend_dd = None, order_inds = None, 
                              Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
                              species_info = None, vel_window = None, 
-                            fixed_model_spec = None, fixed_model_wav = None, phase_range = None):
+                            fixed_model_spec = None, fixed_model_wav = None, phase_range = None,
+                            Kp_true = None, Vsys_true = None):
         """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
         compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
 
@@ -1800,7 +1906,7 @@ class Model:
         #         self.abundances_dict = abund_dict
         
         ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
-        if self.use_stellar_phoenix:
+        if self.stellar_model == 'phoenix':
             if fixed_model_spec is None:
                 model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
             else:
@@ -1816,7 +1922,21 @@ class Model:
             model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
             model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
             model_FpFs_save = model_Fp/self.phoenix_model_flux
-
+        
+        elif self.stellar_model == 'plastar':
+            if fixed_model_spec is None:
+                model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
+            else:
+                model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+            
+            phoenix_modelcube = self.get_simulated_stellar_modelcube(datadetrend_dd = datadetrend_dd) ## This includes broadening by instrument LSF
+            ### Rotationally broaden the planetary spectrum 
+            model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                       model_wav = model_wav, model_spec = model_Fp_orig)
+            
+            model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+            model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+            model_FpFs_save = model_Fp
         else:
             if fixed_model_spec is None:
                 model_wav, model_spec_orig = self.get_spectra(exclude_species=exclude_species)
@@ -1847,8 +1967,9 @@ class Model:
             phases = datadetrend_dd[date]['phases']
             berv = datadetrend_dd[date]['berv']
             nspec = datacube_mean_sub.shape[1]
-            if self.use_stellar_phoenix:
+            if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
                 phoenix_modelcube_this_date = phoenix_modelcube[date]
+            
             
             cc_matrix_all_orders, logL_matrix_all_orders = np.zeros((len(order_inds), nspec, nVsys)), np.zeros((len(order_inds), nspec, nVsys))
             ## Loop over orders
@@ -1884,7 +2005,9 @@ class Model:
                         
                         # plt.close('all')
                         
-                        if self.use_stellar_phoenix:
+                        if self.stellar_model == 'phoenix':
+                            model_spec_flux_shift = model_spec_flux_shift/phoenix_modelcube_this_date[ind,it, :]
+                        elif self.stellar_model == 'plastar':
                             model_spec_flux_shift = model_spec_flux_shift/phoenix_modelcube_this_date[ind,it, :]
                         
                         # Subtract the mean from the model
@@ -2088,10 +2211,17 @@ class Model:
                 # axx[ip].hlines(y=theta_fit_dd['Kp'][postind], xmin=theta_fit_dd['Vsys'][postind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
                 axx[ip].axvline(x=theta_fit_dd['Vsys'][postind], color='w', linestyle='dashed')
                 axx[ip].axhline(y=theta_fit_dd['Kp'][postind], color='w', linestyle='dashed')
+                if Kp_true != None and Vsys_true != None:
+                    axx[ip].axvline(x=Vsys_true, color='w')
+                    axx[ip].axhline(y=Kp_true, color='w')
+                    
         else:
             for ip in [0,1]:
                 axx[ip].axvline(x=self.Vsys_pred, color='w', linestyle='dashed')
                 axx[ip].axhline(y=self.Kp_pred, color='w', linestyle='dashed')
+                if Kp_true != None and Vsys_true != None:
+                    axx[ip].axvline(x=Vsys_true, color='w')
+                    axx[ip].axhline(y=Kp_true, color='w')
                 # axx[ip].vlines(x=self.Vsys_pred, ymin=KpVsys_save['Kp_range'][0], ymax=self.Kp_pred-5., color='w', linestyle='dashed')
                 # axx[ip].vlines(x=self.Vsys_pred, ymin=self.Kp_pred+5., ymax=KpVsys_save['Kp_range'][-1], color='w', linestyle='dashed')
 

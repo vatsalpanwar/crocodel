@@ -191,7 +191,8 @@ for sp in sp_names:
     else:
         exclude_species = [x for x in sp_names if x not in [sp, 'all_species']]
     
-    if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+    # if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+    if planet_model_dict_global[INST_GLOBAL].stellar_model is not None:
         
         model_wav, model_Fp_orig = planet_model_dict_global[INST_GLOBAL].get_Fp_spectra(exclude_species = exclude_species)    
         phoenix_model_lsf_broad = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=planet_model_dict_global[INST_GLOBAL].phoenix_model_flux)

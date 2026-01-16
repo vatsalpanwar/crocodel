@@ -1,132 +1,46 @@
 infostring: 
-  info: 'IGRINS_MASCARA-4b_MAIN_eq_chem_BB_TP-Madhusudhan_Seager_ER-OtoH-CtoH-RtoH_'
-  N_PCA_info: '8_all_post_pca_mask_std_'
+  info: 'HD-189733b_quiet_MAIN_emission_eq-chem-ER_dTspot--1100.0_spot_size-0.2_long-0.0_vsini-3.5_crires_2280.0-2330.0-nm_SNR-500_'
+  N_PCA_info: '4'
 
 retrieval_setup:
   sampler: 'multinest' 
-  N_live: 1000
+  N_live: 500
 
 workdir:
-  results: '/home/astro/phsprd/mascara4b/results/retrievals/'
+  results: '/home/astro/phsprd/stellar_activity_retrievals/results/retrievals/'
   KpVsys_maps_fixed_params: '/home/astro/phsprd/mascara4b/results/KpVsys_maps_fixed_params/'
 
 data: # Each high level key under data should be the name of the instrument.
-  igrins:
+  crires:
     method: emission
-    resolution: 45000
+    resolution: 100000
     dates:
-      # '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
-      '2022-05-25': ['/home/astro/phsprd/mascara4b/data/igrins/from_Nurhan/spdatacubes/mascara-4b_IGRINS_2022-05-25_normalize_data-NO__2022-05-25_spdd.npy']
+      '2020-01-01': ['/home/astro/phsprd/stellar_activity_retrievals/data/emission/MAIN_emission_eq-chem-ER_dTspot--1100.0_spot_size-0.2_long-0.0_vsini-3.5_crires_2280.0-2330.0-nm/spdd_only_tell_modulated_noise_SNR-500.npy'] # In future can also be 'transmission' or 'phase curve' 
 
-    N_order_all : 38
+    N_order_all : 1
 
     skip_order_inds: []
 
     stellcorr_params:
       N_PCA_all_order_common: True
-      N_PCA_all_order_common_value: 8
+      N_PCA_all_order_common_value: 4
 
       # Do N_PCA_all_order_common False and uncomment below if you want different N_PCA for some or all orders. 
-      # N_PCA_dd: {
-      #   '2023-12-04':{
-      #     0: 4,
-      #     1: 4,
-      #     2: 4,
-      #     3: 4,
-      #     4: 4, 
-      #     5: 4, 
-      #     6: 4,
-      #     7: 4, 
-      #     8: 4, 
-      #     9: 4,
-      #     10: 4, 
-      #     11: 4, 
-      #     12: 4,
-      #     13: 4, 
-      #     14: 4, 
-      #     15: 4,
-      #     16: 4, 
-      #     17: 4, 
-      #     18: 4,
-      #     19: 4, 
-      #     20: 4, 
-      #     21: 4,
-      #     22: 4, 
-      #     23: 4, 
-      #     24: 4,
-      #     25: 4, 
-      #     26: 4, 
-      #     27: 4,
-      #     28: 4, 
-      #     29: 4, 
-      #     30: 4,
-      #     31: 4, 
-      #     32: 4, 
-      #     33: 4,
-      #     34: 4, 
-      #     35: 4, 
-      #     36: 4,
-      #     37: 4, 
-      #     38: 4, 
-      #     39: 4,
-      #     40: 4,
-      #     41: 4, 
-      #     # 42: [ [0, 10] , [1838,1848] ]
-            
-      #     }
+      N_PCA_dd: {
+        '2020-01-01':{
+          0: 1,
+          }
 
-      #   }
+        }
 
-      post_pca_mask_threshold : 'std' ## can be 'var' or 'none'
+      post_pca_mask_threshold : 'none' # 'std' ## can be 'var' or 'none'
       pre_pca_mask_flux_threshold : 'none' # 0.5 #
       data_norm_already: True ## IS the data normalized already, or should it be normalized before checking for the pre_pca_mask threshold? 
 
 
       badcolmask_inds : {
-        '2022-05-25':{
-          0: [], # [ [0, 10] , [1838,1848] ],
-          1: [], # [ [0, 10] , [1838,1848] ],
-          2: [], # [ [0, 10] , [1838,1848] ],
-          3: [], # [ [0, 10] , [1838,1848] ],
-          4: [], # [ [0, 10] , [1838,1848] ], 
-          5: [], # [ [0, 10] , [1838,1848] ], 
-          6: [], # [ [0, 10] , [1838,1848] ],
-          7: [], # [ [0, 10] , [1838,1848] ], 
-          8: [], # [ [0, 10] , [1838,1848] ], 
-          9: [], # [ [0, 10] , [1838,1848] ],
-          10: [], # [ [0, 10] , [1838,1848] ], 
-          11: [], # [ [0, 10] , [1838,1848] ], 
-          12: [], # [ [0, 10] , [1838,1848] ],
-          13: [], # [ [0, 10] , [1838,1848] ], 
-          14: [], # [ [0, 10] , [1838,1848] ], 
-          15: [], # [ [0, 10] , [1838,1848] ],
-          16: [], # [ [0, 10] , [1838,1848] ], 
-          17: [], # [ [0, 10] , [1838,1848] ], 
-          18: [], # [ [0, 10] , [1838,1848] ],
-          19: [], # [ [0, 10] , [1838,1848] ], 
-          20: [], # [ [0, 10] , [1838,1848] ], 
-          21: [], # [ [0, 10] , [1838,1848] ],
-          22: [], # [ [0, 10] , [1838,1848] ], 
-          23: [], # [ [0, 10] , [1838,1848] ], 
-          24: [], # [ [0, 10] , [1838,1848] ],
-          25: [], # [ [0, 10] , [1838,1848] ], 
-          26: [], # [ [0, 10] , [1838,1848] ], 
-          27: [], # [ [0, 10] , [1838,1848] ],
-          28: [], # [ [0, 10] , [1838,1848] ], 
-          29: [], # [ [0, 10] , [1838,1848] ], 
-          30: [], # [ [0, 10] , [1838,1848] ],
-          31: [], # [ [0, 10] , [1838,1848] ], 
-          32: [], # [ [0, 10] , [1838,1848] ], 
-          33: [], # [ [0, 10] , [1838,1848] ],
-          34: [], # [ [0, 10] , [1838,1848] ], 
-          35: [], # [ [0, 10] , [1838,1848] ], 
-          36: [], # [ [0, 10] , [1838,1848] ],
-          37: [], # [ [0, 10] , [1838,1848] ], 
-          # 38: [], # [ [0, 10] , [1838,1848] ], 
-          # 39: [], # [ [0, 10] , [1838,1848] ],
-          # 40: [], # [ [0, 10] , [1838,1848] ],
-          # 41: [], # [ [0, 10] , [1838,1848] ], 
-            
+        '2020-01-01':{
+          0: [],
           }
 
       }
@@ -148,41 +62,45 @@ model:
                                  # independently or jointly. This is to be implemented in future.s 
   
   
-  ######## For MASCARA-4b
-  R_star: 1.92 # in terms of R_sun 
-  T_eff: 7800. # K 
-  Vsys: -3.40 ### -18.31 # In km/s. For WASP-122b the value is from Rodriguez et al. 2016 (Table 1, KELT-14b aka WASP-122b).
-  vsini: 45.66 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
+  ######## For HD189733b
+  R_star: 0.76 # in terms of R_sun 
+  T_eff: 5300. # K 
+  Vsys: -15. ### -18.31 # In km/s. For WASP-122b the value is from Rodriguez et al. 2016 (Table 1, KELT-14b aka WASP-122b).
+  vsini: 3.5 ## Rodriguez et al. 2016 (Turner et al. 2016 have 3.3 so could test that or keep this free).
 
   # Planetary parameters 
-  vsini_planet: 2.81573 ## In km/s
-  R_planet: 1.53 # In Jupiter radius
-  log_g: 3.5161
+  vsini_planet: 4.54 ## In km/s
+  R_planet: 1.119 # In Jupiter radius
+  log_g: 3.34
   P_ref: 0.0 # in log(bar)
   P_min: 1.0e-6 # in bars, 1 bar is 1e5 Pa,  so in Pa this is 1.0e-1
   P_max: 1.0e+2 # in bars, so in Pa this is 1.0e7
   N_layers: 50
-  lam_min: 1.3 # in microns  
-  lam_max: 2.5 # in microns 
-  R_power: 250000 # Resolving power (can also do higher than instrument resolution)
+  lam_min: 2.2 # in microns  
+  lam_max: 2.4 # in microns 
+  R_power: 200000 # Resolving power (can also do higher than instrument resolution)
   spacing: R # How do you want the wavelength points to be spaced? Use R for computing models at constant resolving power. 
   log_fs: 0.0
   phase_offset: 0.
-  Kp: 181.05
+  Kp: 154.
 
-  # use_stellar_phoenix: False
-  stellar_model: 'phoenix'
-  phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
-  phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
-  stellar_spectrum_smooth_length: 200
+  # stellar_model: 'phoenix'
+  # # use_stellar_phoenix: True
+  # phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+  # phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
+  # stellar_spectrum_smooth_length: 200
+  
+  stellar_model: 'plastar'
+  model_file_path: '/home/astro/phsprd/stellar_activity_retrievals/data/emission/MAIN_emission_eq-chem-ER_dTspot--1100.0_spot_size-0.2_long-0.0_vsini-3.5_crires_2280.0-2330.0-nm/star_planet_model.npy'
+  model_key: 'F_star_quiet_orig'
 
-  # TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
-  # # # From Sid'e email and looking at set_T function, 
-  # # # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! and in log P(Pa)
-  # P1: 4.
-  # T1: 2000.
-  # P2: 2.
-  # T2: 3000.
+  TP_type: Linear # In future allow for custom, Guillot, or other prescriptions.
+  # # From Sid'e email and looking at set_T function, 
+  # # Order is (P1,T1),(P2,T2),[P0=,T0=], i.e. down to top. P1 must be greater than P2! and in log P(Pa)
+  P1: 4.
+  T1: 1800.
+  P2: 2.
+  T2: 1200.
 
   # TP_type: custom_fixed # If it is a precomputed TP profile that you just want to take as input to GENESIS to calculate the forward model.
   # TP_path: '/home/astro/phsprd/wasp122b/models/abundances_TP_profiles_from_Mike/Mike_TP_cold.csv' # Path to an ascii file with the TP profile values, first column pressure in bars, second column temperature in K.
@@ -194,15 +112,15 @@ model:
   # log_kappa_IR: 0.
   # f_global: 1. # Setting this to one let's it be folded into T_eq
   
-  TP_type: Madhusudhan_Seager # In future allow for custom, Guillot, or other prescriptions.
-  ###### Initial params here set from a fit of the TP to Mike's RCTE cold trap TP 
-  ### Make sure that P1 < P3
-  T_set: 2250.
-  alpha1: 0.9 
-  alpha2: 0.098 
-  log_P1: -4.2
-  log_P2: -2.7 # Setting this to one let's it be folded into T_eq
-  log_P3: -1.84
+  # TP_type: Madhusudhan_Seager # In future allow for custom, Guillot, or other prescriptions.
+  # ###### Initial params here set from a fit of the TP to Mike's RCTE cold trap TP 
+  # ### Make sure that P1 < P3
+  # T_set: 2250.
+  # alpha1: 0.9 
+  # alpha2: 0.098 
+  # log_P1: -4.2
+  # log_P2: -2.7 # Setting this to one let's it be folded into T_eq
+  # log_P3: -1.84
   
   # TP_type: Bezier_4_nodes
   # ### All pressure inputs should be in bars ### 
@@ -220,39 +138,44 @@ model:
   # log_P3: -6. 
 
   ####### Define chemistry here 
-  chemistry: 'eq_chem_ER' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
-  # elemental_ratio_parameters: ['O/H', 'C/H', 'R/H'] # 'Ca/H', 'V/H', 'Si/H', 'Fe/H', 'Ti/H', 'M'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H']
+  # chemistry: 'eq_chem' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  # # elemental_ratio_parameters: ['O/H', 'C/H', 'R/H'] # 'Ca/H', 'V/H', 'Si/H', 'Fe/H', 'Ti/H', 'M'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H']
   # logZ_planet: 0.0
   # C_to_O: 0.5
+
+  chemistry: 'eq_chem_ER' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  # # elemental_ratio_parameters: ['O/H', 'C/H', 'R/H'] # 'Ca/H', 'V/H', 'Si/H', 'Fe/H', 'Ti/H', 'M'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H']
+  # # logZ_planet: 0.0
+  # # C_to_O: 0.5
   elemental_ratios:
     log10_O_to_H_by_O_to_H_solar: 0.
     log10_C_to_H_by_C_to_H_solar: 0.
-    log10_R_to_H_by_R_to_H_solar: 0.
-  refractories: ['ti', 'mg', 'fe', 'ca', 'al', 'cr', 'v', 'si']
+  #   log10_R_to_H_by_R_to_H_solar: 0.
+  refractories: null # ['ti', 'mg', 'fe', 'ca', 'al', 'cr', 'v', 'si']
 
   # Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
   abundances:
     co: -4.5
     h2o: -4.5
-    oh: -4.5
+    # oh: -4.5
     # h2s: -4.5
-    tio: -4.5
+    # tio: -4.5
     # feh: -4.5
     # crh: -4.5
     # vo: -4.5
     # alo: -4.5
-    mgo: -4.5
+    # mgo: -4.5
 
-    fe: -4.5
-    ti: -4.5
-    ca: -4.5
-    al: -4.5
-    cr: -4.5
-    v: -4.5
-    si: -4.5
-    mg: -4.5
+    # fe: -4.5
+    # ti: -4.5
+    # ca: -4.5
+    # al: -4.5
+    # cr: -4.5
+    # v: -4.5
+    # si: -4.5
+    # mg: -4.5
    
-    h_minus: -6.
+    # h_minus: -6.
     he: -0.77
   
   species_name_fastchem:
@@ -316,32 +239,53 @@ model:
     #   bound: [-4., 1.,0., 0.1]
 
     Kp:
-      fix_test: 181.05
+      fix_test: 154.
       prior: Uniform
       bound: [130, 230., 181.05,1.]
     Vsys:
-      fix_test: -3.41
+      fix_test: -15.
       prior: Uniform
-      bound: [-30.,30., 34., 1.] ###measured value is -18.31
+      bound: [-50.,50., 34., 1.] ###measured value is -18.31
+    
+    # logZ_planet:
+    #   fix_test: 0.
+    #   prior: Uniform
+    #   bound: [-6., 2., 0.0,1.] # log10 of the VMRs # change to -10 to -1
+    
+    # C_to_O:
+    #   fix_test: 0.5
+    #   prior: Uniform
+    #   bound: [0., 2., 0.5,0.1] # log10 of the VMRs # change to -10 to -1
+
     ### ### ### ### ### ### ### ###
     ### For a Linear gradient profile
     ### ### ### ### ### ### ### ### 
-    # P1:
-    #   fix_test: 4.
-    #   prior: Uniform
-    #   bound: [-1.0,7.0, 5., 1.] # In log Pa. remember 10^5 Pa  = 1 bar 
-    # T1:
-    #   fix_test: 2000.
-    #   prior: Uniform
-    #   bound: [300., 3400., 1900., 10.] 
-    # P2:
-    #   fix_test: 2.
-    #   prior: Uniform
-    #   bound: [-1.0,7.0,3., 1.] # In log Pa; remember 10^5 Pa  = 1 bar 
-    # T2:
-    #   fix_test: 3000.
-    #   prior: Uniform
-    #   bound: [300., 3400., 1500., 10.] 
+    P1:
+      fix_test: 4.
+      prior: Uniform
+      bound: [-1.0,7.0, 5., 1.] # In log Pa. remember 10^5 Pa  = 1 bar 
+    T1:
+      fix_test: 1800.
+      prior: Uniform
+      bound: [300., 4000., 1900., 10.] 
+    P2:
+      fix_test: 2.
+      prior: Uniform
+      bound: [-1.0,7.0,3., 1.] # In log Pa; remember 10^5 Pa  = 1 bar 
+    T2:
+      fix_test: 1200.
+      prior: Uniform
+      bound: [300., 4000., 1500., 10.] 
+
+    log10_C_to_H_by_C_to_H_solar:
+      fix_test: 0.
+      prior: Uniform
+      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
+    
+    log10_O_to_H_by_O_to_H_solar:
+      fix_test: 0.
+      prior: Uniform
+      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
 
     ### ### ### ### ### ### ### ### ###
     ### For Guillot profile 
@@ -366,46 +310,46 @@ model:
     ## ### ### ### ### ### ### ### ###
     ## For Madhusudhan_Seager TP profile 
     ## ### ### ### ### ### ### ### ###
-    T_set: 
-      fix_test: 2250.
-      prior: Uniform
-      bound: [1200., 4000., 150, 10.] 
-    alpha1: 
-      fix_test: 0.9
-      prior: Uniform
-      bound: [0.001, 1., 0.02, 0.001] 
-    alpha2: 
-      fix_test: 0.098
-      prior: Uniform
-      bound: [0.001, 1., 0.02, 0.001] 
-    log_P1: ## in log bars 
-      fix_test: -4.2
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
-    log_P2: ## in log bars 
-      fix_test: -2.7
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
-    log_P3: ## in log bars 
-      fix_test: -1.84
-      prior: Uniform
-      bound: [-6., 2., 0., 1.]
+    # T_set: 
+    #   fix_test: 2250.
+    #   prior: Uniform
+    #   bound: [1200., 4000., 150, 10.] 
+    # alpha1: 
+    #   fix_test: 0.9
+    #   prior: Uniform
+    #   bound: [0.001, 1., 0.02, 0.001] 
+    # alpha2: 
+    #   fix_test: 0.098
+    #   prior: Uniform
+    #   bound: [0.001, 1., 0.02, 0.001] 
+    # log_P1: ## in log bars 
+    #   fix_test: -4.2
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
+    # log_P2: ## in log bars 
+    #   fix_test: -2.7
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
+    # log_P3: ## in log bars 
+    #   fix_test: -1.84
+    #   prior: Uniform
+    #   bound: [-6., 2., 0., 1.]
 
 
-    log10_C_to_H_by_C_to_H_solar:
-      fix_test: 0.
-      prior: Uniform
-      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
+    # log10_C_to_H_by_C_to_H_solar:
+    #   fix_test: 0.
+    #   prior: Uniform
+    #   bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
     
-    log10_O_to_H_by_O_to_H_solar:
-      fix_test: 0.
-      prior: Uniform
-      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
+    # log10_O_to_H_by_O_to_H_solar:
+    #   fix_test: 0.
+    #   prior: Uniform
+    #   bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
 
-    log10_R_to_H_by_R_to_H_solar:
-      fix_test: 0.
-      prior: Uniform
-      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
+    # log10_R_to_H_by_R_to_H_solar:
+    #   fix_test: 0.
+    #   prior: Uniform
+    #   bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
 
     ### ### ### ### ### ### ### ### ###
     ### For TP_Bezier_4_nodes

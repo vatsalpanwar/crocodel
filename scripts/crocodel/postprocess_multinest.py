@@ -93,8 +93,8 @@ datadetrend_dd = np.load(args['workdir'] + 'datadetrend_dd.npy', allow_pickle = 
 ##############################################################################
 ### Define global variables 
 ##############################################################################
-INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments
-# INST_GLOBAL = 'crires' ## could change this when running for multiple instruments
+# INST_GLOBAL = 'igrins' ## could change this when running for multiple instruments
+INST_GLOBAL = 'crires' ## could change this when running for multiple instruments
 # posterior_type_list = ['median'] # ['MAP'] # ['median'] # , '-1sigma', '+1sigma']
 posterior_type = 'median'
 
@@ -145,13 +145,30 @@ for i, pn in enumerate(free_param_dict.keys()):
     fit_param_dict[pn] = [ marginals[i]['median'], marginals[i]['1sigma'][0], marginals[i]['1sigma'][1], MAP_param_vector[i] ]  ### index 0 is -1sigma, and index 1 is +1sigma
 np.save(savedir + 'fit_param_dict_models.npy', fit_param_dict)
 
-
-
-
 ##############################################################################
 ### Compute and save a plot of the TP profile 
 ##############################################################################
 print('Computing the TP profile ...')
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
+#### Compute it for true TP profile which was injected into the data (optional) (for stellar retreivals; comment out for other applications)
+true_TP = {
+'P1': 4.,
+'T1': 1800.,
+'P2': 2.,
+'T2': 1200.,
+}
+
+for pname in true_TP.keys():
+    if pname in planet_model_dict_global[INST_GLOBAL].species or pname in ['P1','P2']:
+        setattr(planet_model_dict_global[INST_GLOBAL], pname, 10.**true_TP[pname])
+    else:
+        setattr(planet_model_dict_global[INST_GLOBAL], pname, true_TP[pname])
+temp_true, press_true = planet_model_dict_global[INST_GLOBAL].get_TP_profile()   
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+
+### Compute it for the best fit params from the retrieval 
 temp_list, press_list = {}, {} 
 ## First do for the median 
 # posterior_type = posterior_type_list[0] # 'median' or 'MAP' , DOING ONLY ONE AT A TIME FOR NOW! 
@@ -299,6 +316,7 @@ for i in range(len(chain_inds)):
     plt.plot(temp_samp[i], press_samp[i], color = 'r', alpha = 0.1, linewidth = 0.3)
 # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
 plt.plot(temp_list['median'],press_list['median'], color = 'k' )
+plt.plot(temp_true,press_true, color = 'k', linestyle = 'dashed' )
 
 plt.ylim(press_list['median'].max(), press_list['median'].min())
 # plt.xlim(1600.,3500.)
@@ -312,7 +330,7 @@ plt.figure()
 plt.fill_betweenx(tp_dict['press_median'], tp_dict['temp_min_sig'], tp_dict['temp_plus_sig'], color = 'r', alpha = 0.2)
 # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
 plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
-
+plt.plot(temp_true,press_true, color = 'k', linestyle = 'dashed' )
 plt.ylim(press_list['median'].max(), press_list['median'].min())
 # plt.xlim(1600.,3500.)
 plt.yscale('log')
@@ -393,7 +411,7 @@ for pname in fit_param_dict.keys():
     else:
         setattr(planet_model_dict_global[INST_GLOBAL], pname, fit_param_dict[pname][ind])
         
-if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+if planet_model_dict_global[INST_GLOBAL].stellar_model == 'phoenix':
     
     model_wav, model_Fp_orig = planet_model_dict_global[INST_GLOBAL].get_Fp_spectra()    
     phoenix_model_lsf_broad = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=planet_model_dict_global[INST_GLOBAL].phoenix_model_flux)
@@ -518,7 +536,7 @@ plt.fill_betweenx(tp_dict['press_median'],tp_dict['temp_min_sig'], tp_dict['temp
 # plt.fill_betweenx(press_list[0], temp_list[1], temp_list[2], color = 'r', alpha = 0.2)
 plt.plot(tp_dict['temp_med_sig'],tp_dict['press_median'], color = 'r' )
 plt.ylim(max(tp_dict['press_median']), min(tp_dict['press_median']))
-plt.xlim(1600.,3500.)
+plt.xlim(1600.,5000.)
 plt.yscale('log')
 plt.xlabel('Temperature [K]')
 plt.ylabel('Pressure [bar]')
@@ -530,13 +548,14 @@ plt.savefig(savedir + 'TP_profile_tau_2by3_pressures.pdf', format='pdf', dpi=300
 # exit()
 
 
-# print('All species: ')
-# # for posterior_type in posterior_type_list:
-# # print('Computing: ', posterior_type)
-# print('Using fast method first ...')
-# planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = fit_param_dict, 
-#                                     posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
-#             Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window)
+print('All species: ')
+# for posterior_type in posterior_type_list:
+# print('Computing: ', posterior_type)
+print('Using fast method first ...')
+planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = fit_param_dict, 
+                                    posterior = posterior_type, datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+            Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = KpVsys_savedir, vel_window = vel_window,
+            Kp_true = 154., Vsys_true = -15.)
 
 # exit()
 

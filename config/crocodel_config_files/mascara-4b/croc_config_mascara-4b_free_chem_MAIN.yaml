@@ -1,5 +1,5 @@
 infostring: 
-  info: 'IGRINS_MASCARA-4b_MAIN_eq_chem_BB_TP-Madhusudhan_Seager_ER-OtoH-CtoH-RtoH_'
+  info: 'IGRINS_MASCARA-4b_MAIN_free_chem_BB_TP-Madhusudhan_Seager_'
   N_PCA_info: '8_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -220,16 +220,17 @@ model:
   # log_P3: -6. 
 
   ####### Define chemistry here 
-  chemistry: 'eq_chem_ER' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
-  # elemental_ratio_parameters: ['O/H', 'C/H', 'R/H'] # 'Ca/H', 'V/H', 'Si/H', 'Fe/H', 'Ti/H', 'M'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H']
-  # logZ_planet: 0.0
-  # C_to_O: 0.5
-  elemental_ratios:
-    log10_O_to_H_by_O_to_H_solar: 0.
-    log10_C_to_H_by_C_to_H_solar: 0.
-    log10_R_to_H_by_R_to_H_solar: 0.
-  refractories: ['ti', 'mg', 'fe', 'ca', 'al', 'cr', 'v', 'si']
+  # chemistry: 'eq_chem_ER' # 'eq_chem' ## Can be 'eq_chem' or 'free_chem' ; if set to 'eq_chem', then make sure that the free params have 'c_to_o' and/or 'o_to_h' as the free parameters.  
+  # # elemental_ratio_parameters: ['O/H', 'C/H', 'R/H'] # 'Ca/H', 'V/H', 'Si/H', 'Fe/H', 'Ti/H', 'M'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O', 'O_to_H'] # ['logZ_planet', 'C_to_O'] # ['logZ_planet', 'C_to_O', 'O_to_H']
+  # # logZ_planet: 0.0
+  # # C_to_O: 0.5
+  # elemental_ratios:
+  #   log10_O_to_H_by_O_to_H_solar: 0.
+  #   log10_C_to_H_by_C_to_H_solar: 0.
+  #   log10_R_to_H_by_R_to_H_solar: 0.
+  # refractories: ['ti', 'mg', 'fe', 'ca', 'al', 'cr', 'v', 'si']
 
+  chemistry: free_chem
   # Planetary Abundances in terms of the Volume Mixing Ratios of each species. log10 of the VMRs defined here.
   abundances:
     co: -4.5
@@ -391,172 +392,56 @@ model:
       prior: Uniform
       bound: [-6., 2., 0., 1.]
 
-
-    log10_C_to_H_by_C_to_H_solar:
-      fix_test: 0.
+    co:
+      fix_test: -4.5
       prior: Uniform
-      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
-    
-    log10_O_to_H_by_O_to_H_solar:
-      fix_test: 0.
+      bound: [-15., 1.5, 0., 1.]
+
+    h2o:
+      fix_test: -4.5
       prior: Uniform
-      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
-
-    log10_R_to_H_by_R_to_H_solar:
-      fix_test: 0.
+      bound: [-15., 1.5, 0., 1.]
+    oh:
+      fix_test: -4.5
       prior: Uniform
-      bound: [-6., 2., 0.0,1.]  # log10 of the VMRs # change to -10 to -1
-
-    ### ### ### ### ### ### ### ### ###
-    ### For TP_Bezier_4_nodes
-    ### ### ### ### ### ### ### ### ###
-    # T0:
-    #   fix_test: 3475.37
-    #   prior: Uniform
-    #   bound: [400., 3500., 150, 10.] 
-    # T1:
-    #   fix_test: 1706.35 
-    #   prior: Uniform
-    #   bound: [400., 3500., 0.02, 0.001] 
-    # log_P1:
-    #   fix_test: -3.23 
-    #   prior: Uniform
-    #   bound: [-6., 2., 0.02, 0.001] 
-    # T2:
-    #   fix_test: 2888.97
-    #   prior: Uniform
-    #   bound: [400., 3500., 0., 1.]
-    # log_P2:
-    #   fix_test: 1.99
-    #   prior: Uniform
-    #   bound: [-6., 2., 0., 1.]
-    # T3:
-    #   fix_test: 3175.55
-    #   prior: Uniform
-    #   bound: [400., 3500., 0., 1.]
-
-    # logZ_planet:
-    #   fix_test: 0.
-    #   prior: Uniform
-    #   bound: [-6., 2., 0.0,1.] # log10 of the VMRs # change to -10 to -1
-    
-    # C_to_O:
-    #   fix_test: 0.5
-    #   prior: Uniform
-    #   bound: [0., 2., 0.5,0.1] # log10 of the VMRs # change to -10 to -1
-    
-    # h_minus:
-    #   fix_test: -14.6
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # ### ### ### ### ### ### ### ### ###
-    # ### Abundances 
-    # ### ### ### ### ### ### ### ### ###
-
-    # co:
-    #   fix_test: -5.04
-    #   prior: Uniform
-    #   bound: [-15., -1., -3., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # h2o:
-    #   fix_test: -5.2 
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-    
-    # oh:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-    
-    # h2s:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # tio:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # feh:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # crh:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # vo:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # alo:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # mgo:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # fe:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1    
-    
-    # ti:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # si:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # ca:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # al:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # cr:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # v:
-    #   fix_test: -10.2
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-    
-    # h_minus:
-    #   fix_test: -14.6
-    #   prior: Uniform
-    #   bound: [-15., -1., -4., 1.] # log10 of the VMRs # change to -10 to -1
-
-    # # alpha_h2o: 
-    # #   fix_test: 2.
-    # #   prior: Uniform
-    # #   bound: [0.1,4., 0., 0.]
-    
-    # # log10_beta_h2o:
-    # #   fix_test: 4.68
-    # #   prior: Uniform
-    # #   bound: [2.,6.,0.,0.]
-
-    # # gamma_h2o:      
-    # #   fix_test: 15.9
-    # #   prior: Uniform
-    # #   bound: [5., 20.,0.,0.]
-      
-
+      bound: [-15., 1.5, 0., 1.]
+    tio:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    mgo:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    fe:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    ti:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    ca:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    al:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    cr:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    v:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    si:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
+    mg:
+      fix_test: -4.5
+      prior: Uniform
+      bound: [-15., 1.5, 0., 1.]
