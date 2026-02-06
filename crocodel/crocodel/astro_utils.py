@@ -607,3 +607,99 @@ def generate_distinct_colors(num_colors):
     
     return hex_colors
 
+''' FUNCTIONS DEALING WITH ECCENTRIC ORBITAL SOLUTIONS '''
+
+''' This function solves Kepler's equation with Newton's algorithm to find roots.
+- meanAn: the mean anomaly of the observations (scalar or vector)
+- ecc: the eccentricity (0 ... 1)
+- eps: a tolerance which is tuned quite big by default (OK for low eccentricities) '''
+def ecc_anomaly(meanAn,ecc,eps=1E-10):
+    E0 = meanAn
+    diff = 1.0
+    while diff > eps:
+        E1 = E0 - (E0 - ecc*np.sin(E0)-meanAn)/(1.0-ecc*np.cos(E0))
+        diff = np.abs(E1-E0).max()
+        E0 = E1.copy()
+    return E1
+
+''' This code returns the planet RV curve for an eccentric solution, starting
+from a vector of orbital phases. The code has been vetted against the codes of
+M. Basilicata and G. Guilluy.
+The code i) computes the true anomaly at the transit centre, ii) converts it
+into mean anomaly, and iii) use point ii) as an offset to convert phases into
+mean anomalies. Then it reverses the process to compute the set of true anom.
+and hence RVs.
+The convention used is that omega=0 corresponds to the periastron on the sky
+plane (e.g. 90 degrees from the line of sight).
+
+INPUTS:
+- vs: systemic velocity
+- vb: the velocity of the solar system barycentre in the reference frame of the
+      Earth (i.e. the inverse of the correction computed e.g. via AstroPy)
+- kp: the planet RV semi-amplitude
+- ph: the vector of orbital phases (0 = mid-transit / inf. conjunction,
+      0.5 = eclipse / sup. conjunction)
+- e : the orbital eccentricity
+- ws: the argument of periastron of the host star (radians)
+** All velocities need to be in the same units (e.g. all m/s or km/s).
+** If vs or vb are added separately, just set vs=0, vb=0.
+
+OUTPUT:
+- rvs: the vector of RV corresponding to the orbital phases 'ph' '''
+# def get_eccentric_rv(vs, vb, kp, ph, e, ws, verbose=False):
+#     wp = ws - np.pi
+#     if wp < 0: wp += 2 * np.pi  # Enforces wp to be 0 ... 2pi
+#     if e == 0: wp = 0.0   # Manually setting wp if circular orbit
+#     trueAnomalyAtTransit = (7 * np.pi / 2.) - wp
+#     num = np.sin(trueAnomalyAtTransit)*np.sqrt(1.-e**2)
+#     den = e+np.cos(trueAnomalyAtTransit)
+#     eccAnAtTransit = np.arctan2(num, den)
+#     meanAnAtTransit = eccAnAtTransit - e*np.sin(eccAnAtTransit)
+#     if verbose:
+#         print('v_t (rad) =', trueAnomalyAtTransit)
+#         print('E_t (rad) =', eccAnAtTransit)
+#         print('M_t (rad) =', meanAnAtTransit)
+#     M = 2 * np.pi * ph + meanAnAtTransit
+#     E = ecc_anomaly(M, e)
+#     f = 2*np.arctan(np.sqrt(1+e)/np.sqrt(1-e)*np.tan(E/2.0))
+#     f[f<0] += 2 * np.pi   # Should not be necessary, but just in case
+#     rvs = vs + vb + kp * (np.cos(f+wp) + e*np.cos(wp))
+#     return rvs
+def get_eccentric_rv(Vsys=None, berv = None, Kp = None, phases = None, ecc = None, wp = None, verbose=False):
+    # wp = ws - np.pi
+    if wp < 0: wp += 2 * np.pi  # Enforces wp to be 0 ... 2pi
+    if ecc == 0: wp = 0.0   # Manually setting wp if circular orbit
+    trueAnomalyAtTransit = (7 * np.pi / 2.) - wp
+    num = np.sin(trueAnomalyAtTransit)*np.sqrt(1.-ecc**2)
+    den = ecc+np.cos(trueAnomalyAtTransit)
+    eccAnAtTransit = np.arctan2(num, den)
+    meanAnAtTransit = eccAnAtTransit - ecc*np.sin(eccAnAtTransit)
+    if verbose:
+        print('v_t (rad) =', trueAnomalyAtTransit)
+        print('E_t (rad) =', eccAnAtTransit)
+        print('M_t (rad) =', meanAnAtTransit)
+    M = 2 * np.pi * phases + meanAnAtTransit
+    E = ecc_anomaly(M, ecc)
+    f = 2*np.arctan(np.sqrt(1+ecc)/np.sqrt(1-ecc)*np.tan(E/2.0))
+    f[f<0] += 2 * np.pi   # Should not be necessary, but just in case
+    rvs = Vsys + berv + Kp * (np.cos(f+wp) + ecc*np.cos(wp))
+    return rvs
+
+def get_f_values(phases = None, ecc = None, wp = None, verbose=False):
+    # wp = ws - np.pi
+    if wp < 0: wp += 2 * np.pi  # Enforces wp to be 0 ... 2pi
+    if ecc == 0: wp = 0.0   # Manually setting wp if circular orbit
+    trueAnomalyAtTransit = (7 * np.pi / 2.) - wp
+    num = np.sin(trueAnomalyAtTransit)*np.sqrt(1.-ecc**2)
+    den = ecc+np.cos(trueAnomalyAtTransit)
+    eccAnAtTransit = np.arctan2(num, den)
+    meanAnAtTransit = eccAnAtTransit - ecc*np.sin(eccAnAtTransit)
+    if verbose:
+        print('v_t (rad) =', trueAnomalyAtTransit)
+        print('E_t (rad) =', eccAnAtTransit)
+        print('M_t (rad) =', meanAnAtTransit)
+    M = 2 * np.pi * phases + meanAnAtTransit
+    E = ecc_anomaly(M, ecc)
+    f = 2*np.arctan(np.sqrt(1+ecc)/np.sqrt(1-ecc)*np.tan(E/2.0))
+    f[f<0] += 2 * np.pi   # Should not be necessary, but just in case
+    return f

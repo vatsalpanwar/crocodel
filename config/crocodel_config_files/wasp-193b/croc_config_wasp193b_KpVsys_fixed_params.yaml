@@ -1,5 +1,7 @@
 infostring: 
-  info: 'CRIRES_PLUS_WASP-193b_allsp_night1_GENESIS_H2O_CO_CH4_logZ_0_RECAL_Luke_1e-3_res_'
+  # info: 'CRIRES_PLUS_WASP-193b_allsp_night1_GENESIS_H2O_CO_CH4_logZ_0_RECAL_Luke_1e-3_res_circular_'
+  # info: 'CRIRES_PLUS_WASP-193b_allsp_night1_GENESIS_H2O_CO_CH4_logZ_0_RECAL_Luke_1e-3_res_eccentric-2x_'
+  info: 'CRIRES_PLUS_WASP-193b_allsp_night1_GENESIS_H2O_CO_CH4_logZ_0_RECAL_Luke_1e-3_res_Yee_ephemeris_'
   N_PCA_info: '5_all_post_pca_mask_std_'
 
 retrieval_setup:
@@ -15,15 +17,8 @@ data: # Each high level key under data should be the name of the instrument.
     method: transmission
     resolution: 50000 ## For 0.4'' slit width.
     dates:
-      # '2024-02-01': ['/home/astro/phsprd/wasp107b_spirou/data/parsed/spdatacube_wasp107b_spirou_clipped_100pix_AB__2024-02-01_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
-      # '2024-02-01': ['/home/astro/phsprd/wasp107b_spirou/data/parsed/spdatacube_wasp107b_spirou_blaze_removed_normalized__2024-02-01_spdd.npy']
-      # '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/spdatacube_first_reduction_excalibuhr__2025-01-23_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
-      # '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/wave_recal_spdatacube_first_reduction_excalibuhr_INIT_WLEN__2025-01-23_spdd.npy']
-      # '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/wave_recal_CC_SkyCalc_spdatacube_first_reduction_excalibuhr_INIT_WLEN__2025-01-23_spdd.npy']
-      # '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/wave_recal_spdatacube_excalibuhr_INIT_WLEN_recalib_Matteo__2025-01-23_spdd.npy']
-      # '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/spdatacube_excalibuhr_INIT_WLEN_recalib_Luke__2025-01-23_spdd.npy']
-      '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/spdatacube_excalibuhr_INIT_WLEN_recalib_Luke_1e-3_res__2025-01-23_spdd.npy']
-
+      # '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/spdatacube_excalibuhr_INIT_WLEN_recalib_Luke_1e-3_res__2025-01-23_spdd.npy']
+      '2025-01-23': ['/home/astro/phsprd/wasp193b_crires/data/parsed/spdatacube_excalibuhr_INIT_WLEN_recalib_Luke_1e-3_res_ephemeris-Yee2025_2025-01-23_spdd.npy']
     N_order_all : 21
     skip_order_inds: []
     # skip_order_inds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,48]
@@ -112,42 +107,13 @@ data: # Each high level key under data should be the name of the instrument.
           18: [], # [ [0, 10] , [1838,1848] ],
           19: [], # [ [0, 10] , [1838,1848] ], 
           20: [], # [ [0, 10] , [1838,1848] ], 
-          # 21: [], # [ [0, 10] , [1838,1848] ],
-          # 22: [], # [ [0, 10] , [1838,1848] ], 
-          # 23: [], # [ [0, 10] , [1838,1848] ], 
-          # 24: [], # [ [0, 10] , [1838,1848] ],
-          # 25: [], # [ [0, 10] , [1838,1848] ], 
-          # 26: [], # [ [0, 10] , [1838,1848] ], 
-          # 27: [], # [ [0, 10] , [1838,1848] ],
-          # 28: [], # [ [0, 10] , [1838,1848] ], 
-          # 29: [], # [ [0, 10] , [1838,1848] ], 
-          # 30: [], # [ [0, 10] , [1838,1848] ],
-          # 31: [], # [ [0, 10] , [1838,1848] ], 
-          # 32: [], # [ [0, 10] , [1838,1848] ], 
-          # 33: [], # [ [0, 10] , [1838,1848] ],
-          # 34: [], # [ [0, 10] , [1838,1848] ], 
-          # 35: [], # [ [0, 10] , [1838,1848] ], 
-          # 36: [], # [ [0, 10] , [1838,1848] ],
-          # 37: [], # [ [0, 10] , [1838,1848] ], 
-          # 38: [], # [ [0, 10] , [1838,1848] ], 
-          # 39: [], # [ [0, 10] , [1838,1848] ],
-          # 40: [], # [ [0, 10] , [1838,1848] ],
-          # 41: [], # [ [0, 10] , [1838,1848] ],
-          # 42: [], # [ [0, 10] , [1838,1848] ], 
-          # 43: [], # [ [0, 10] , [1838,1848] ],
-          # 44: [], # [ [0, 10] , [1838,1848] ],
-          # 45: [], # [ [0, 10] , [1838,1848] ],
-          # 46: [], # [ [0, 10] , [1838,1848] ],
-          # 47: [], # [ [0, 10] , [1838,1848] ],
-          # 48: [], # [ [0, 10] , [1838,1848] ],
-
           },
         
       }
     cross_correlation_params:
       ### Kp_exp is 117.73 km/s
       Vsys_range: [-100., 100.]
-      Kp_range: [40., 300.]
+      Kp_range: [60., 180.]
       # Vsys_range: [-100., 100.]
       # Kp_range: [90.,130.]
 
@@ -189,7 +155,15 @@ model:
   phase_offset: 0.
   Kp: 117.73
 
-  use_stellar_phoenix: False
+  # eccentric: True
+  eccentric: False
+  # sqrt_ecc_cos_wp: 0.14 ## Yee et al. 2025
+  # sqrt_ecc_sin_wp: 0.18 ## Yee et al. 2025
+  ecc: 0.081 ## +0.07 - 0.05 Yee et al. 2025
+  wp: 42 ## + 84 - 50 , Yee et al. 2025
+
+
+  stellar_model: null 
   phoenix_model_flux_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/lte05800-4.00-0.0.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
   phoenix_model_wave_path: '/home/astro/phsprd/wasp122b/models/phoenix_model/WAVE_PHOENIX-ACES-AGSS-COND-2011.fits'
   stellar_spectrum_smooth_length: 200
@@ -263,6 +237,25 @@ model:
     nh3: 'H3N1'
     co2: 'C1O2'
     hcn: 'C1H1N1_1'
+
+    h2s: 'H2S1'
+    tio: 'O1Ti1'
+    feh: 'Fe1H1'
+    crh: 'Cr1H1'
+    vo: 'O1V1'
+    alo: 'Al1O1'
+    mgo: 'Mg1O1'
+
+    fe: 'Fe'
+    ti: 'Ti'
+    si: 'Si'
+    ca: 'Ca'
+    mg: 'Mg'
+    v: 'V'
+    al: 'Al'
+    cr: 'Cr'
+
+    h_minus: 'H1-'
     he: 'He'
 
   cl_P: 0.0 # log(cloud_pressure) in bars 

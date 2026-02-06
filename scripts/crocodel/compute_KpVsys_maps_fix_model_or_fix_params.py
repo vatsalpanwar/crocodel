@@ -67,7 +67,7 @@ else:
 with open(config_file_path) as f:
     config_dd = yaml.load(f,Loader=yaml.FullLoader)
     
-infostring = config_dd['infostring']['info'] + '_N_PCA-' + str(config_dd['infostring']['N_PCA_info']) + '_' + d1
+infostring = config_dd['infostring']['info'] + '_N_PCA-' + str(config_dd['infostring']['N_PCA_info'])  ### skipping date tag for now when testing things + '_' + d1
 
 savedir = config_dd['workdir']['KpVsys_maps_fixed_params'] + infostring + '/'
 
@@ -274,7 +274,7 @@ else:
     model_ind_dd = {}
     model_ind_dd['all_species'] = {}
     
-    if planet_model_dict_global[INST_GLOBAL].use_stellar_phoenix:
+    if planet_model_dict_global[INST_GLOBAL].stellar_model == 'phoenix':
     
         model_wav, model_Fp_orig = planet_model_dict_global[INST_GLOBAL].get_Fp_spectra()    
         phoenix_model_lsf_broad = planet_model_dict_global[INST_GLOBAL].convolve_spectra_to_instrument_resolution(model_spec_orig=planet_model_dict_global[INST_GLOBAL].phoenix_model_flux)
@@ -530,6 +530,10 @@ if not fix_model:
         planet_model_dict_global[INST_GLOBAL].compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
                                                             datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
                                 Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
+        # print('Using fast method with jax ...')
+        # planet_model_dict_global[INST_GLOBAL].jax_compute_2D_KpVsys_map_fast_without_model_reprocess(theta_fit_dd = None, posterior = None, 
+        #                                                     datadetrend_dd = datadetrend_dd, order_inds = order_inds, 
+        #                         Vsys_range = Vsys_range_trail, Kp_range = Kp_range, savedir = savedir, vel_window = vel_window, phase_range = phase_range)
 
 else:
     print('Computing KpVsys maps for fixed model ...')

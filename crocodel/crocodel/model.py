@@ -9,6 +9,7 @@ from astropy.io import fits
 import scipy.constants as sc
 from . import stellcorrection_utils as stc
 from . import cross_correlation_utils as crocut
+from . import ccf
 # from scipy.interpolate import splev, splrep
 from scipy import interpolate
 import matplotlib.pyplot as plt
@@ -286,7 +287,15 @@ class Model:
         self.phase_offset = self.config['model']['phase_offset']
         self.Kp = self.config['model']['Kp'] # Current value of Kp, in km/s
         self.Vsys = self.config['model']['Vsys'] # Current value of Vsys, in km/s
-        
+        self.eccentric = self.config['model']['eccentric']
+        if self.eccentric:
+            # self.sqrt_ecc_cos_wp = self.config['model']['sqrt_ecc_cos_wp']
+            # self.sqrt_ecc_sin_wp = self.config['model']['sqrt_ecc_sin_wp']
+            # self.ecc = self.sqrt_ecc_cos_wp**2. + self.sqrt_ecc_cos_wp**2.
+            # self.wp = np.arctan(self.sqrt_ecc_sin_wp/self.sqrt_ecc_cos_wp)
+            
+            self.ecc = self.config['model']['ecc']
+            self.wp = self.config['model']['wp'] * (np.pi/180.)
         
         self.Kp_pred = self.Kp # Expected value of Kp, in km/s
         self.Vsys_pred = self.Vsys # Expected value of Vsys, in km/s
@@ -955,10 +964,15 @@ class Model:
         
         # Based on given value of Kp, shift the 1D model by the expected total velocity of the planet for each exposure
         # print(self.Kp, self.Vsys)
+        if self.eccentric:
+            RV_array = aut.get_eccentric_rv(Vsys=self.Vsys, 
+                                            berv = berv, 
+                                            Kp = self.Kp, 
+                                            phases = phases, ecc = self.ecc, wp = self.wp)
+        else:
+            RV_array = self.Kp * np.sin(2. * np.pi * (phases + self.phase_offset)) + self.Vsys + berv
         for it in range(nspec):
-            RV = self.Kp * np.sin(2. * np.pi * (phases[it] + self.phase_offset)) + self.Vsys + berv[it]
-            
-            data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln, velocity=-1. * RV)
+            data_wavsoln_shift = crocut.doppler_shift_wavsoln(wavsoln=data_wavsoln, velocity=-1. * RV_array[it])
             # model_spec_shift_exp = splev(data_wavsoln_shift, model_spl)
             model_spec_shift_exp = model_spl(data_wavsoln_shift)
             model_spec_shift_cube[it, :] = model_spec_shift_exp
@@ -2054,11 +2068,14 @@ class Model:
                                         title= 'Total ; Date: '+ date ,
                                         setxlabel=True, plot_type = 'pcolormesh')
             fig.colorbar(hnd1, ax=axx)
-            velocity_trail = []
-            for it in range(len(datadetrend_dd[date]['phases'])):
-                V_planet =  self.Kp * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it]) + self.Vsys + datadetrend_dd[date]['berv'][it]
-                velocity_trail.append(V_planet)
-            velocity_trail = np.array(velocity_trail)
+            if self.eccentric:
+                velocity_trail = aut.get_eccentric_rv(Vsys=self.Vsys, 
+                                                berv = datadetrend_dd[date]['berv'], 
+                                                Kp = self.Kp, 
+                                                phases = datadetrend_dd[date]['phases'], ecc = self.ecc, wp = self.wp)
+            else:
+                velocity_trail =  self.Kp * np.sin(2. * np.pi * datadetrend_dd[date]['phases']) + self.Vsys + datadetrend_dd[date]['berv']
+
             plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed')
             if self.method == 'transmission':
                 plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
@@ -2139,12 +2156,22 @@ class Model:
                 phase_mask = np.logical_and(phases > phase_range[0], phases < phase_range[1])
             print('Total phases: ', len(phases))
             print('Summing signal across: ', np.sum(phase_mask))
-        
+                
             for iKp, Kp in enumerate(Kp_range):
                 CC_matrix_shifted, logL_matrix_shifted = np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((nspec, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
+                
+                if self.eccentric:
+                    RV_planet_array = aut.get_eccentric_rv(Vsys=0., 
+                                                    berv = berv, 
+                                                    Kp = Kp, 
+                                                    phases = phases, ecc = self.ecc, wp = self.wp)
+                else:
+                    RV_planet_array = Kp * np.sin(2. * np.pi * phases)
+                
                 for it in range(nspec):
                     if phase_mask[it] == True:
-                        Vp = Kp * np.sin(2. * np.pi * phases[it])
+                        
+                        Vp = RV_planet_array[it]
                         Vsys_shifted = Vsys_range + Vp  + berv[it] 
                         # print('Vp:', Vp, 'BERV: ', berv[it])
                         # print('Vsys_shifted ', max(Vsys_shifted), min(Vsys_shifted) )
@@ -2373,3 +2400,399 @@ class Model:
                 plt.savefig(savedir + 'total_'+ mk + '_'+ posterior+ '_without_' + species_info + '_.pdf', format='pdf', dpi=300, bbox_inches='tight')
             
         plt.close('all')
+        
+
+
+
+########### JAX based functions 
+    def jax_compute_2D_KpVsys_map_fast_without_model_reprocess(self, theta_fit_dd = None, posterior = None, 
+                                                            datadetrend_dd = None, order_inds = None, 
+                                Vsys_range = None, Kp_range = None, savedir = None, exclude_species = None, 
+                                species_info = None, vel_window = None, 
+                                fixed_model_spec = None, fixed_model_wav = None, phase_range = None,
+                                Kp_true = None, Vsys_true = None):
+            """For a set of parameters inferred from the retrieval posteriors (stored in the dictionary theta_fit_dd), 
+            compute the 2D cross-correlation map for a range of Kp and Vsys WITHOUT model reprocessing, using the 'fast' method.
+
+            :param theta_fit_dd: Dictionary of parameter values inferred from the posteriors, defaults to None
+            :type theta_fit_dd: dict, optional
+            
+            :param posterior: Specify the type of parameters in theta_fit_dd with respect to the posterior; 
+            'median', '+1sigma', '-1sigma', defaults to 'median'
+            :type posterior: str, optional
+            
+            :param datadetrend_dd: Detrended data dictionary, defaults to None
+            :type datadetrend_dd: dict, optional
+            
+            :param order_inds: Index of orders/detectors for which you want to compute the log-likelihood.
+            :type order_inds: array of int
+            
+            :param Vsys_range: Range of Vsys, defaults to None
+            :type Vsys_range: array_like
+            
+            :param Kp_range: Range of Vsys, defaults to None
+            :type Kp_range: array_like
+            
+            :param savedir: path to the directory where you want to save the plot, defaults to None
+            :type savedir: str, optional
+            
+            :param exclude_species: List of species you want to exclude the contribution from in the model, defaults to None
+            :type exclude_species: array_like of str, optional
+            
+            :param species_info: Name of the species for which the model is being calculated, often just one species, defaults to None
+            :type species_info: str, optional
+            
+            :return: dictionary storing all the Kp-Vsys maps
+            :rtype: dict
+            
+            """
+            ## Define the index of the theta_fit_dd to use depending on if you are doing the computation for median, +1sigma, or -1sigma values of the posterior. 
+            ## If theta_fit_dd is None, then don't change anything and leave the parameters to the ones set originally when intializing the planet model instance.
+            if theta_fit_dd is not None:
+                if posterior == 'median':
+                    postind = 0
+                elif posterior == '-1sigma':
+                    postind = 1
+                elif posterior == '+1sigma':
+                    postind = 2
+                
+                #######################################################################
+                ################# SET THE SAMPLED FREE PARAMETERS FOR THE MODEL #######
+                for pname in theta_fit_dd.keys():
+                    if pname in self.species or pname in ['P0', 'P1','P2']:
+                        setattr(self, pname, 10.**theta_fit_dd[pname][postind])
+                    else:
+                        setattr(self, pname, theta_fit_dd[pname][postind])
+                #######################################################################
+                #######################################################################
+
+            datelist = list(datadetrend_dd.keys())
+
+            nKp, nVsys = len(Kp_range), len(Vsys_range)
+            ################# Due you want to zero out certain species to get the contribution of others? ######## NOT IMPLMENTED YET : 13-06-2024
+            # if exclude_species is not None:
+            #     for spnm in exclude_species:
+            #         # setattr(self, spnm, 10.**-30.)
+            #         abund_dict = copy.deepcopy(self.abundances_dict)
+            #         abund_dict[spnm] = abund_dict[spnm] * 1e-30
+            #         self.abundances_dict = abund_dict
+            
+            ### Calculate the model_spec and model_wav which should be the same for all dates for this instrument (all taken in same mode : transmission or emission)
+            if self.stellar_model == 'phoenix':
+                if fixed_model_spec is None:
+                    model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
+                else:
+                    model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+                phoenix_modelcube = self.get_phoenix_modelcube(datadetrend_dd = datadetrend_dd, 
+                                                            model_phoenix_flux = self.phoenix_model_flux, 
+                                                            model_phoenix_wav = self.phoenix_model_wav) ## This includes broadening by instrument LSF
+                ### Rotationally broaden the planetary spectrum 
+                model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                        model_wav = model_wav, model_spec = model_Fp_orig)
+                
+                model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+                model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+                model_FpFs_save = model_Fp/self.phoenix_model_flux
+            
+            elif self.stellar_model == 'plastar':
+                if fixed_model_spec is None:
+                    model_wav, model_Fp_orig = self.get_Fp_spectra(exclude_species=exclude_species)
+                else:
+                    model_wav, model_Fp_orig = fixed_model_wav, fixed_model_spec
+                
+                phoenix_modelcube = self.get_simulated_stellar_modelcube(datadetrend_dd = datadetrend_dd) ## This includes broadening by instrument LSF
+                ### Rotationally broaden the planetary spectrum 
+                model_Fp_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                        model_wav = model_wav, model_spec = model_Fp_orig)
+                
+                model_Fp = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_Fp_orig_broadened)
+                model_spl = interpolate.make_interp_spline(model_wav, model_Fp, bc_type='natural')  
+                model_FpFs_save = model_Fp
+            else:
+                if fixed_model_spec is None:
+                    model_wav, model_spec_orig = self.get_spectra(exclude_species=exclude_species)
+                else:
+                    model_wav, model_spec_orig = fixed_model_wav, fixed_model_spec
+                    
+                # Rotationally broaden the spectrum 
+                model_spec_orig_broadened, _ = self.rotation(vsini = self.vsini_planet, 
+                                                model_wav = model_wav, model_spec = model_spec_orig)   
+                model_spec = self.convolve_spectra_to_instrument_resolution(model_spec_orig=model_spec_orig_broadened)
+                model_Fp = None
+                phoenix_modelcube = {}
+                for date in datelist:
+                    phoenix_modelcube[date] = None
+                model_spl = interpolate.make_interp_spline(model_wav, model_spec, bc_type='natural')   
+                model_FpFs_save = model_spec
+            
+            #####################################################################################################################################################################
+            #####################################################################################################################################################################
+            ########### Loop over dates, and get trail matrix (summed across all detectors) and then convert that to KpVsys maps for that date by shift by Kp and interpolation 
+            #####################################################################################################################################################################
+            #####################################################################################################################################################################
+            CC_matrix_all_dates , logL_matrix_all_dates = {}, {}
+            for dt, date in enumerate(datelist):
+                
+                datacube_mean_sub = datadetrend_dd[date]['datacube_mean_sub']
+                data_wavsoln = datadetrend_dd[date]['data_wavsoln']
+                phases = datadetrend_dd[date]['phases']
+                berv = datadetrend_dd[date]['berv']
+                nspec = datacube_mean_sub.shape[1]
+                if self.stellar_model == 'phoenix' or self.stellar_model == 'plastar':
+                    phoenix_modelcube_this_date = phoenix_modelcube[date]
+                
+                
+                cc_matrix_all_orders, logL_matrix_all_orders = np.zeros((len(order_inds), nspec, nVsys)), np.zeros((len(order_inds), nspec, nVsys))
+                
+                ## Loop over orders to get the trail matrix first 
+                    
+                for i_ind, ind in tqdm(enumerate(order_inds)): 
+                    avoid_mask = np.logical_or(datadetrend_dd[date]['colmask'][ind, :],datadetrend_dd[date]['post_pca_mask'][ind, :])
+                    
+                    
+                    ########## Start here for JAX 
+                    modelcube_RpRs = np.tile(model_spec, (nspec,1))
+                    datacube = datacube_mean_sub[ind,:,:]
+                    datacube[:,avoid_mask] = 0.
+                    wavsoln = data_wavsoln[ind,:]
+                    model_wavsoln = model_wav
+                    RV = Vsys_range
+                    # import pdb; pdb.set_trace()
+                    cc_matrix_all_orders_ = ccf.CCF_trail_per_RV_transmission(RV, datacube, 
+                                                                            modelcube_RpRs, model_wavsoln, 
+                                                                            wavsoln, avoid_mask)
+                    cc_matrix_all_orders[i_ind,:,:]=cc_matrix_all_orders_.T
+                    logL_matrix_all_orders_ = ccf.logL_trail_per_RV_transmission(RV, datacube, 
+                                                                                modelcube_RpRs, model_wavsoln, 
+                                                                                wavsoln, avoid_mask)
+                    logL_matrix_all_orders[i_ind,:,:]=logL_matrix_all_orders_.T
+                CC_matrix_all_dates[dt] , logL_matrix_all_dates[dt] = np.sum(cc_matrix_all_orders, axis = 0), np.sum(logL_matrix_all_orders, axis = 0)              
+
+            # import pdb; pdb.set_trace
+            ###### Plot the CC trail matrix to test 
+            for dt, date in enumerate(datelist):
+                fig, axx = plt.subplots(figsize = (15,5))
+                
+                hnd1 = crocut.subplot_cc_matrix(axis=axx,
+                                            cc_matrix=CC_matrix_all_dates[dt],
+                                            phases=datadetrend_dd[date]['phases'],
+                                            velocity_shifts=Vsys_range,
+                                            ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                            title= 'Total ; Date: '+ date ,
+                                            setxlabel=True, plot_type = 'pcolormesh')
+                fig.colorbar(hnd1, ax=axx)
+                if self.eccentric:
+                    velocity_trail = aut.get_eccentric_rv(Vsys=self.Vsys, 
+                                                    berv = datadetrend_dd[date]['berv'], 
+                                                    Kp = self.Kp, 
+                                                    phases = datadetrend_dd[date]['phases'], ecc = self.ecc, wp = self.wp)
+                else:
+                    velocity_trail =  self.Kp * np.sin(2. * np.pi * datadetrend_dd[date]['phases']) + self.Vsys + datadetrend_dd[date]['berv']
+
+                plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed')
+                if self.method == 'transmission':
+                    plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
+                    plt.axhline(y = phase_range[1], color = 'w', lw = 2, linestyle = 'dotted')
+                # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
+                axx.set_ylabel(r'$\phi$')
+                axx.set_xlabel(r'V$_{sys}$ [km/s]')
+                plt.savefig(savedir + 'ccf_total_trail_matrix_fast_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
+                plt.close()
+            
+            ####### Repeat the CCF trail matrix plotting, but now with each frame normalized by its median
+            for dt, date in enumerate(datelist):
+                fig, axx = plt.subplots(figsize = (15,5))
+                cc_matrix = CC_matrix_all_dates[dt]
+                # Normalize each row by its median
+                cc_matrix_normalized = np.zeros_like(cc_matrix)
+                for it in range(cc_matrix.shape[0]):
+                    cc_matrix_normalized[it, :] = cc_matrix[it, :] - np.median(cc_matrix[it, :])
+                # Plot the normalized matrix
+                hnd1 = crocut.subplot_cc_matrix(axis=axx,
+                                            cc_matrix=cc_matrix_normalized,
+                                            phases=datadetrend_dd[date]['phases'],
+                                            velocity_shifts=Vsys_range,
+                                            ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                            title= 'Total ; Date: '+ date ,
+                                            setxlabel=True, plot_type = 'pcolormesh')
+                fig.colorbar(hnd1, ax=axx)
+                velocity_trail = []
+                for it in range(len(datadetrend_dd[date]['phases'])):
+                    V_planet =  self.Kp * np.sin(2. * np.pi * datadetrend_dd[date]['phases'][it]) + self.Vsys + datadetrend_dd[date]['berv'][it]
+                    velocity_trail.append(V_planet)
+                velocity_trail = np.array(velocity_trail)
+                plt.plot(velocity_trail, datadetrend_dd[date]['phases'], color = 'w', lw = 1, linestyle = 'dashed') 
+                if self.method == 'transmission':
+                    plt.axhline(y = phase_range[0], color = 'w', lw = 2, linestyle = 'dotted')
+                    plt.axhline(y = phase_range[1], color = 'w', lw = 2, linestyle = 'dotted') 
+                # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
+                axx.set_ylabel(r'$\phi$')
+                axx.set_xlabel(r'V$_{sys}$ [km/s]')
+                plt.savefig(savedir + 'ccf_total_trail_matrix_fast_normalized_date-' + date + '.png', format='png', dpi=300, bbox_inches='tight')
+                plt.close()
+            
+            ###### Plot the logL trail matrix to test
+            for dt, date in enumerate(datelist):
+                fig, axx = plt.subplots(figsize = (15,5))
+                hnd1 = crocut.subplot_cc_matrix(axis=axx,
+                                            cc_matrix=logL_matrix_all_dates[dt],
+                                            phases=datadetrend_dd[date]['phases'],
+                                            velocity_shifts=Vsys_range,
+                                            ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                            title= 'Total ; Date: '+ date ,
+                                            setxlabel=True, plot_type = 'pcolormesh')
+                fig.colorbar(hnd1, ax=axx)
+
+                # axx[1].plot(velocity_shifts, cc_matrix_sum[:])
+                axx.set_ylabel(r'$\phi$')
+                axx.set_xlabel(r'V$_{sys}$ [km/s]')
+                plt.savefig(savedir + 'logL_total_trail_matrix_fast_date-' + date + '.pdf', format='pdf', dpi=300, bbox_inches='tight')
+                plt.close()
+            
+            #####################################################################################################################################################################
+            #####################################################################################################################################################################
+            ########### Get the KpVsys maps directly  
+            #####################################################################################################################################################################
+            #####################################################################################################################################################################
+            CC_KpVsys_total, logL_KpVsys_total = np.zeros((len(datelist), nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), np.zeros((len(datelist), nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
+            ## Start loop over dates 
+            for dt, date in enumerate(datelist):
+                print('Date', date)
+                CC_KpVsys, logL_KpVsys = np.zeros((len(order_inds), nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) )), 
+                np.zeros((len(order_inds), nKp, len(Vsys_range[vel_window[0]:vel_window[1]]) ))
+                
+                datacube_mean_sub = datadetrend_dd[date]['datacube_mean_sub']
+                data_wavsoln = datadetrend_dd[date]['data_wavsoln']
+                phases = datadetrend_dd[date]['phases']
+                berv = datadetrend_dd[date]['berv']
+                nspec = datacube_mean_sub.shape[1]
+                
+                
+                print('phases:', phases)
+                phase_mask = np.ones(len(phases), dtype = bool)
+                if phase_range is not None:
+                    phase_mask = np.logical_and(phases > phase_range[0], phases < phase_range[1])
+                print('Total phases: ', len(phases))
+                print('Summing signal across: ', np.sum(phase_mask))
+                
+                phase_f_values = aut.get_f_values(phases = phases, ecc = self.ecc, wp = self.wp)
+                
+                for i_ind, ind in tqdm(enumerate(order_inds)): 
+                    avoid_mask = np.logical_or(datadetrend_dd[date]['colmask'][ind, :],
+                                            datadetrend_dd[date]['post_pca_mask'][ind, :])
+                    
+                    
+                    ########## Start here for JAX 
+                    modelcube_RpRs = np.tile(model_spec, (nspec,1))[phase_mask,~avoid_mask]
+                    datacube = datacube_mean_sub[ind,:,:]
+                    datacube[:,avoid_mask] = 0.
+                    wavsoln = data_wavsoln[ind,:]
+                    model_wavsoln = model_wav
+                    phase_f_values = phase_f_values[phase_mask]
+                    berv = berv[phase_mask]
+                    
+                    CC_KpVsys[i_ind,:,:] = ccf.compute_CCF_map_per_order_transmission(datacube_mean_sub, 
+                                                                                modelcube_RpRs,
+                                    Kp_range, 
+                                model_wavsoln, data_wavsoln,
+                                Vsys_range[vel_window[0]:vel_window[1]], 
+                                phase_f_values, berv, self.wp, self.ecc)
+                    logL_KpVsys[i_ind,:,:] = ccf.compute_logL_map_per_order_transmission(datacube_mean_sub, 
+                                                                                modelcube_RpRs,
+                                    Kp_range, 
+                                model_wavsoln, data_wavsoln,
+                                Vsys_range[vel_window[0]:vel_window[1]], 
+                                phase_f_values, berv, self.wp, self.ecc)
+
+                
+                CC_KpVsys_total[dt,:,:] = np.sum(CC_KpVsys, axis = 0)
+                logL_KpVsys_total[dt,:,:] = np.sum(logL_KpVsys, axis = 0)
+                
+            
+            CC_KpVsys_total = np.sum(CC_KpVsys_total, axis = 0)
+            logL_KpVsys_total = np.sum(logL_KpVsys_total, axis = 0)
+            
+            KpVsys_save = {}
+            KpVsys_save['model_spec'] = model_FpFs_save
+            KpVsys_save['model_wav'] = model_wav
+            KpVsys_save['model_wav'] = model_wav
+            KpVsys_save['logL'] = logL_KpVsys_total
+            KpVsys_save['cc'] = CC_KpVsys_total
+            KpVsys_save['Kp_range'] = Kp_range
+            KpVsys_save['Vsys_range'] = Vsys_range
+            KpVsys_save['vel_window'] = vel_window
+            KpVsys_save['Vsys_range_windowed'] = Vsys_range[vel_window[0]:vel_window[1]]
+            
+            
+            if species_info is None:
+                np.save(savedir + 'KpVsys_fast_no_model_reprocess_dict.npy', KpVsys_save)
+            else:
+                plt.figure()
+                plt.plot(KpVsys_save['model_wav'], KpVsys_save['model_spec'])
+                plt.xlabel('Wavelength [nm]')
+                plt.ylabel('Fp/Fs')
+                plt.savefig(savedir + 'model_without_' + species_info + '.png', format = 'png', dpi = 300)
+                np.save(savedir + 'KpVsys_fast_no_model_reprocess_dict' + '_without_' + species_info + '.npy', KpVsys_save)
+            
+            ####### Plot and save 
+            subplot_num = 2
+            fig, axx = plt.subplots(subplot_num, 1, figsize=(8, 8*subplot_num))
+            plt.subplots_adjust(hspace=0.6)
+
+            hnd1 = crocut.subplot_cc_matrix(axis=axx[0],
+                                        cc_matrix=KpVsys_save['cc'],
+                                        phases=Kp_range,
+                                        velocity_shifts=KpVsys_save['Vsys_range_windowed'],
+                                        ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                        title= 'Total CC' ,
+                                        setxlabel=True, plot_type = 'pcolormesh')
+            fig.colorbar(hnd1, ax=axx[0])
+
+            hnd1 = crocut.subplot_cc_matrix(axis=axx[1],
+                                        cc_matrix=KpVsys_save['logL'],
+                                        phases=Kp_range,
+                                        velocity_shifts=KpVsys_save['Vsys_range_windowed'],
+                                        ### check if this plotting is correct, perhaps you need to plot with respect to shifted (by Kp and bary_RV) Vsys values and not the original Vsys (this would mean a different Vsys array for each row)
+                                        title= 'Total logL' ,
+                                        setxlabel=True, plot_type = 'pcolormesh')
+            fig.colorbar(hnd1, ax=axx[1])
+
+            if theta_fit_dd is not None:
+                for ip in [0,1]:
+                    # axx[ip].vlines(x=theta_fit_dd['Vsys'][postind], ymin=KpVsys_save['Kp_range'][0], ymax=theta_fit_dd['Kp'][postind]-5., color='k', linestyle='dashed')
+                    # axx[ip].vlines(x=theta_fit_dd['Vsys'][postind], ymin=theta_fit_dd['Kp'][postind]+5., ymax=KpVsys_save['Kp_range'][-1], color='k', linestyle='dashed')
+
+                    # axx[ip].hlines(y=theta_fit_dd['Kp'][postind], xmin=KpVsys_save['Vsys_range'][0], xmax=theta_fit_dd['Vsys'][postind]-5., color='k', linestyle='dashed')
+                    # axx[ip].hlines(y=theta_fit_dd['Kp'][postind], xmin=theta_fit_dd['Vsys'][postind]+5., xmax=KpVsys_save['Vsys_range'][-1], color='k', linestyle='dashed')
+                    axx[ip].axvline(x=theta_fit_dd['Vsys'][postind], color='w', linestyle='dashed')
+                    axx[ip].axhline(y=theta_fit_dd['Kp'][postind], color='w', linestyle='dashed')
+                    if Kp_true != None and Vsys_true != None:
+                        axx[ip].axvline(x=Vsys_true, color='w')
+                        axx[ip].axhline(y=Kp_true, color='w')
+                        
+            else:
+                for ip in [0,1]:
+                    axx[ip].axvline(x=self.Vsys_pred, color='w', linestyle='dashed')
+                    axx[ip].axhline(y=self.Kp_pred, color='w', linestyle='dashed')
+                    if Kp_true != None and Vsys_true != None:
+                        axx[ip].axvline(x=Vsys_true, color='w')
+                        axx[ip].axhline(y=Kp_true, color='w')
+                    # axx[ip].vlines(x=self.Vsys_pred, ymin=KpVsys_save['Kp_range'][0], ymax=self.Kp_pred-5., color='w', linestyle='dashed')
+                    # axx[ip].vlines(x=self.Vsys_pred, ymin=self.Kp_pred+5., ymax=KpVsys_save['Kp_range'][-1], color='w', linestyle='dashed')
+
+                    # axx[ip].hlines(y=self.Kp_pred, xmin=KpVsys_save['Vsys_range_windowed'][0], xmax=self.Vsys_pred-5., color='w', linestyle='dashed')
+                    # axx[ip].hlines(y=self.Kp_pred, xmin=self.Vsys_pred+5., xmax=KpVsys_save['Vsys_range_windowed'][-1], color='w', linestyle='dashed')
+                    
+
+                
+
+            axx[0].set_ylabel(r'K$_{P}$ [km/s]')
+            axx[0].set_xlabel(r'V$_{sys}$ [km/s]')
+            axx[1].set_ylabel(r'K$_{P}$ [km/s]')
+            axx[1].set_xlabel(r'V$_{sys}$ [km/s]')
+            
+            if species_info is None:
+                plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess.png', format='png', dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(savedir + 'KpVsys_fast_no_model_reprocess' + '_without_' + species_info + '.png', format='png', dpi=300, bbox_inches='tight')
