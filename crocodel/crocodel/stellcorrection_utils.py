@@ -4,12 +4,16 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.cm as cm
 from scipy.optimize import curve_fit
-from . import cross_correlation_utils as crocut
+# from . import cross_correlation_utils as crocut
+
+import sys
+sys.path.append('/rds/projects/p/piettaaa-exo-mapping/code/crocodel/')
+from crocodel.crocodel import cross_correlation_utils as crocut
+
 # from scipy.interpolate import splev, splrep
 from scipy import interpolate
 from tqdm import tqdm
 from scipy import stats
-from memory_profiler import profile
 import gc
 import corner
 

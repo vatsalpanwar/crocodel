@@ -1,0 +1,35 @@
+opac:
+#  opac: hr
+#  cia_only: [h2, he]
+#  cia_files: [h2_h2, he_h2]
+#  file_loc: /home/astro/phsprd/cross_sec_files/updated_04-03-2025/
+
+ opac: hr
+ ## Atoms 
+ fe: fe
+ mg: mg
+ ca: ca
+ si: si
+ ti: ti
+ feII: feII
+ caII: caII
+ al: al
+ cr: cr
+ 
+ v: v
+
+ h2o: h2o ## POKAZATEL
+ co: co
+ h2s: h2s
+ sio: sio
+ tio: tio
+ feh: feh
+ crh: crh
+ vo: vo
+ alo: alo
+ mgo: mgo
+ so2: so2
+
+ cia_only: [h2, he]
+ cia_files: [h2_h2, he_h2]
+ file_loc: /rds/projects/p/piettaaa-exo-mapping/cross_sec_files/

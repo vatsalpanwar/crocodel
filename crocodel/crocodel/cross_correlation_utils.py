@@ -7,8 +7,11 @@ from scipy import interpolate
 from tqdm import tqdm
 from scipy import interpolate
 import scipy.stats
-
-from . import stellcorrection_utils as stc
+import sys
+# from . import stellcorrection_utils as stc
+import sys
+sys.path.append('/rds/projects/p/piettaaa-exo-mapping/code/crocodel/')
+from crocodel.crocodel import stellcorrection_utils as stc
 
 def fast_mean(x):
     """

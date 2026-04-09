@@ -1,9 +1,14 @@
 import numpy as np
 import yaml
 
-from . import stellcorrection_utils as stc
-from . import cross_correlation_utils as crocut
-
+# from . import stellcorrection_utils as stc
+# from . import cross_correlation_utils as crocut
+import sys
+sys.path.append('/rds/projects/p/piettaaa-exo-mapping/code/crocodel/')
+from crocodel.crocodel import stellcorrection_utils as stc
+from crocodel.crocodel import cross_correlation_utils as crocut
+from crocodel.crocodel import astro_utils as aut
+from crocodel.crocodel import ccf
 
 class Data:
     """Data class to contain and analyse typical high-resolution cross-correlation spectroscopy dataset.
@@ -87,7 +92,9 @@ class Data:
         for inst in self.get_instrument_list:
             spdatacubes_dict[inst] = {}
             for date in self.get_dates(inst):
-                spdatacubes_dict[inst][date] = np.load(self.config['data'][inst]['dates'][date][0], allow_pickle = True).item()
+                data_path = self.config['data'][inst]['data_root_dir'] + self.config['data'][inst]['dates'][date][0]
+                spdatacubes_dict[inst][date] = np.load(data_path, 
+                                                       allow_pickle = True).item()
         return spdatacubes_dict
     
     def get_use_order_inds(self, inst = None, date = None):

@@ -26,9 +26,9 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 # Add the path to the code snippet modules
-from crocodel.crocodel import stellcorrection_utils as stc
-from crocodel.crocodel import data
-from crocodel.crocodel import model
+from ...crocodel.crocodel.crocodel import stellcorrection_utils as stc
+from ...crocodel.crocodel.crocodel import data
+from ...crocodel.crocodel.crocodel import model
 ##########################################################################################################################
 ##########################################################################################################################
 ### Define the global name for the instrument (should match the instrument name specified in the croc_config.yaml file)

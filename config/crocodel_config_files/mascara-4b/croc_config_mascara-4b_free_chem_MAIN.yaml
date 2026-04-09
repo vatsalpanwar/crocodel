@@ -7,8 +7,8 @@ retrieval_setup:
   N_live: 1000
 
 workdir:
-  results: '/home/astro/phsprd/mascara4b/results/retrievals/'
-  KpVsys_maps_fixed_params: '/home/astro/phsprd/mascara4b/results/KpVsys_maps_fixed_params/'
+  results: '/rds/projects/p/piettaaa-exo-mapping/stellar_activity_retrievals/results/retrievals/'
+  KpVsys_maps_fixed_params: '/rds/projects/p/piettaaa-exo-mapping/stellar_activity_retrievals/results/retrievals/KpVsys_maps_fixed_params/'
 
 data: # Each high level key under data should be the name of the instrument.
   igrins:
@@ -16,7 +16,7 @@ data: # Each high level key under data should be the name of the instrument.
     resolution: 45000
     dates:
       # '2023-12-04': ['/home/astro/phsprd/wasp122b/data/igrins/spdatacubes/wave_recal_WASP-122b_IGRINS_2023-12-04_spdd.npy'] # In future can also be 'transmission' or 'phase curve' 
-      '2022-05-25': ['/home/astro/phsprd/mascara4b/data/igrins/from_Nurhan/spdatacubes/mascara-4b_IGRINS_2022-05-25_normalize_data-NO__2022-05-25_spdd.npy']
+      '2022-05-25': ['/rds/projects/p/piettaaa-exo-mapping/mascara4b/data/igrins/from_Nurhan/spdatacubes/mascara-4b_IGRINS_2022-05-25_normalize_data-NO__2022-05-25_spdd.npy']
 
     N_order_all : 38
 
