@@ -15,8 +15,8 @@ from astropy.convolution import Box1DKernel, Gaussian1DKernel, convolve
 from tqdm import tqdm
 from scipy import interpolate
 
-from crocodel.crocodel import stellcorrection_utils as stc
-from crocodel.crocodel import cross_correlation_utils as crocut
+from crocodel.ccf import stellcorrection_utils as stc
+from crocodel.ccf import cross_correlation_utils as crocut
 import skycalc_ipy
 import batman
 

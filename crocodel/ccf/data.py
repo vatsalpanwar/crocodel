@@ -5,10 +5,10 @@ import yaml
 # from . import cross_correlation_utils as crocut
 import sys
 sys.path.append('/rds/projects/p/piettaaa-exo-mapping/code/crocodel/')
-from crocodel.crocodel import stellcorrection_utils as stc
-from crocodel.crocodel import cross_correlation_utils as crocut
-from crocodel.crocodel import astro_utils as aut
-from crocodel.crocodel import ccf
+from crocodel.ccf import stellcorrection_utils as stc
+from crocodel.ccf import cross_correlation_utils as crocut
+from crocodel.ccf import astro_utils as aut
+from crocodel.ccf import cross_correlation_utils_jax
 
 class Data:
     """Data class to contain and analyse typical high-resolution cross-correlation spectroscopy dataset.

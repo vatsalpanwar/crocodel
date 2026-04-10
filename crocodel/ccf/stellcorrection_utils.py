@@ -8,7 +8,7 @@ from scipy.optimize import curve_fit
 
 import sys
 sys.path.append('/rds/projects/p/piettaaa-exo-mapping/code/crocodel/')
-from crocodel.crocodel import cross_correlation_utils as crocut
+from crocodel.ccf import cross_correlation_utils as crocut
 
 # from scipy.interpolate import splev, splrep
 from scipy import interpolate

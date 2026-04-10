@@ -12,10 +12,10 @@ import scipy.constants as sc
 # from . import ccf
 import sys
 sys.path.append('/rds/projects/p/piettaaa-exo-mapping/code/crocodel/')
-from crocodel.crocodel import stellcorrection_utils as stc
-from crocodel.crocodel import cross_correlation_utils as crocut
-from crocodel.crocodel import astro_utils as aut
-from crocodel.crocodel import ccf
+from crocodel.ccf import stellcorrection_utils as stc
+from crocodel.ccf import cross_correlation_utils as crocut
+from crocodel.ccf import astro_utils as aut
+from crocodel.ccf import cross_correlation_utils_jax
 from crocodel.genesis import genesis
 
 # from scipy.interpolate import splev, splrep
@@ -2662,11 +2662,11 @@ class Model:
                     model_wavsoln = model_wav
                     RV = Vsys_range
                     # import pdb; pdb.set_trace()
-                    cc_matrix_all_orders_ = ccf.CCF_trail_per_RV_transmission(RV, datacube, 
+                    cc_matrix_all_orders_ = cross_correlation_utils_jax.CCF_trail_per_RV_transmission(RV, datacube, 
                                                                             modelcube_RpRs, model_wavsoln, 
                                                                             wavsoln, avoid_mask)
                     cc_matrix_all_orders[i_ind,:,:]=cc_matrix_all_orders_.T
-                    logL_matrix_all_orders_ = ccf.logL_trail_per_RV_transmission(RV, datacube, 
+                    logL_matrix_all_orders_ = cross_correlation_utils_jax.logL_trail_per_RV_transmission(RV, datacube, 
                                                                                 modelcube_RpRs, model_wavsoln, 
                                                                                 wavsoln, avoid_mask)
                     logL_matrix_all_orders[i_ind,:,:]=logL_matrix_all_orders_.T
@@ -2795,13 +2795,13 @@ class Model:
                     phase_f_values = phase_f_values[phase_mask]
                     berv = berv[phase_mask]
                     
-                    CC_KpVsys[i_ind,:,:] = ccf.compute_CCF_map_per_order_transmission(datacube_mean_sub, 
+                    CC_KpVsys[i_ind,:,:] = cross_correlation_utils_jax.compute_CCF_map_per_order_transmission(datacube_mean_sub, 
                                                                                 modelcube_RpRs,
                                     Kp_range, 
                                 model_wavsoln, data_wavsoln,
                                 Vsys_range[vel_window[0]:vel_window[1]], 
                                 phase_f_values, berv, self.wp, self.ecc)
-                    logL_KpVsys[i_ind,:,:] = ccf.compute_logL_map_per_order_transmission(datacube_mean_sub, 
+                    logL_KpVsys[i_ind,:,:] = cross_correlation_utils_jax.compute_logL_map_per_order_transmission(datacube_mean_sub, 
                                                                                 modelcube_RpRs,
                                     Kp_range, 
                                 model_wavsoln, data_wavsoln,
