@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "High-resolution cross-correlation spectroscopy retrievals of exoplanet atmospheres."
 authors = [{ name = "Vatsal Panwar" }]
 license = "MIT"
-readme = "readme.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ['numpy', 'astropy', 'scipy', 
                       'matplotlib', 'tqdm', 'pyyaml', 'pyfastchem',
